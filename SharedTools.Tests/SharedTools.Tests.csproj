@@ -13,7 +13,7 @@
     <Description>Shared testing tools and utilities</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <RepositoryUrl>https://github.com/yourusername/SharedTools</RepositoryUrl>
+    <RepositoryUrl>https://github.com/andrewboudreau/SharedTools</RepositoryUrl>
     <PackageTags>testing;utilities</PackageTags>
   </PropertyGroup>
 
