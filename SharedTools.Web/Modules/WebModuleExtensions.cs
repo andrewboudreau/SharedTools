@@ -11,7 +11,7 @@ public static class WebModuleExtensions
     /// Discovers plugin DLLs in the specified folder, loads them, registers their Razor parts,
     /// merges their static assets, and invokes their ConfigureServices.
     /// </summary>
-    public static WebApplicationBuilder AddModules(this WebApplicationBuilder builder, string pluginsFolder)
+    public static WebApplicationBuilder AddWebModules(this WebApplicationBuilder builder, string pluginsFolder)
     {
         var env = builder.Environment;
         // Ensure Razor Pages is added to access PartManager
@@ -64,7 +64,7 @@ public static class WebModuleExtensions
     /// <summary>
     /// Invokes each plugin's Configure method to wire up endpoints and middleware.
     /// </summary>
-    public static WebApplication UseModules(this WebApplication app)
+    public static WebApplication UseWebModules(this WebApplication app)
     {
         var plugins = app.Services.GetRequiredService<IReadOnlyCollection<IWebModule>>();
         foreach (var plugin in plugins)
