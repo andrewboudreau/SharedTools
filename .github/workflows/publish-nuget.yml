@@ -17,6 +17,31 @@ jobs:
       with:
         dotnet-version: 9.0.x
     
+    # Extract version number from tag (assuming tags like v9.0.1)
+    - name: Extract version from tag
+      id: extract_version
+      run: |
+        # Remove the "refs/tags/" prefix and then the "v" prefix.
+        TAG=${GITHUB_REF#refs/tags/}
+        VERSION=${TAG#v}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Tag is: $TAG, version is: $VERSION"
+    
+    # Update version in csproj files
+    - name: Update csproj version
+      run: |
+        VERSION=${{ steps.extract_version.outputs.version }}
+        echo "Updating csproj files to version $VERSION"
+        
+        # Use sed to update the Version tag in csproj files
+        sed -i "s/<Version>[0-9]\+\.[0-9]\+\.[0-9]\+\(<.*\)\?<\/Version>/<Version>$VERSION<\/Version>/g" SharedTools.Web/SharedTools.Web.csproj
+        sed -i "s/<Version>[0-9]\+\.[0-9]\+\.[0-9]\+\(<.*\)\?<\/Version>/<Version>$VERSION<\/Version>/g" SharedTools.Tests/SharedTools.Tests.csproj
+        
+        # Verify the changes
+        echo "Updated versions:"
+        grep -o "<Version>.*</Version>" SharedTools.Web/SharedTools.Web.csproj
+        grep -o "<Version>.*</Version>" SharedTools.Tests/SharedTools.Tests.csproj
+    
     - name: Restore dependencies
       run: dotnet restore
     
@@ -32,46 +57,6 @@ jobs:
     - name: Pack SharedTools.Tests
       run: dotnet pack SharedTools.Tests/SharedTools.Tests.csproj --configuration Release --no-build --output nuget-packages
     
-    # Extract version number from tag (assuming tags like v9.0.1)
-    - name: Extract version from tag
-      id: extract_version
-      run: |
-        # Remove the "refs/tags/" prefix and then the "v" prefix.
-        TAG=${GITHUB_REF#refs/tags/}
-        VERSION=${TAG#v}
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "Tag is: $TAG, version is: $VERSION"
-
-    - name: Ensure csproj version matches tag version
-      run: |
-        # Extract the version from the tag (assuming tag is formatted as "v9.0.1")
-        TAG_VERSION=${GITHUB_REF#refs/tags/v}
-        echo "Tag version: $TAG_VERSION"
-          
-        # Extract the Version property from the csproj file using grep & sed (adjust the file name if needed)
-        CSPROJ_VERSION=$(grep -oP '(?<=<Version>)[^<]+' ./SharedTools.Tests/SharedTools.Tests.csproj)
-        echo "csproj version: $CSPROJ_VERSION"
-    
-        if [ "$TAG_VERSION" != "$CSPROJ_VERSION" ]; then
-            echo "Error: Tag version ($TAG_VERSION) does not match csproj version ($CSPROJ_VERSION)."
-            exit 1
-        fi
-
-    - name: Ensure csproj version matches tag version
-      run: |
-        # Extract the version from the tag (assuming tag is formatted as "v9.0.1")
-        TAG_VERSION=${GITHUB_REF#refs/tags/v}
-        echo "Tag version: $TAG_VERSION"
-          
-        # Extract the Version property from the csproj file using grep & sed (adjust the file name if needed)
-        CSPROJ_VERSION=$(grep -oP '(?<=<Version>)[^<]+' ./SharedTools.Web/SharedTools.Web.csproj)
-        echo "csproj version: $CSPROJ_VERSION"
-    
-        if [ "$TAG_VERSION" != "$CSPROJ_VERSION" ]; then
-            echo "Error: Tag version ($TAG_VERSION) does not match csproj version ($CSPROJ_VERSION)."
-            exit 1
-        fi
-
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
@@ -86,13 +71,13 @@ jobs:
     - name: Publish package to NuGet
       if: github.ref_type == 'tag'
       run: |
-        dotnet nuget push "./artifacts/*.nupkg" \
+        dotnet nuget push "./nuget-packages/*.nupkg" \
           --api-key ${{ secrets.NUGET_API_KEY }} \
           --source https://api.nuget.org/v3/index.json \
           --skip-duplicate
       
-    # Upload the NuGet package as a release asset using the version number if needed.
-    - name: Upload NuGet Package as Release Asset
+    # Upload the NuGet package as a release asset using the version number
+    - name: Upload Web NuGet Package as Release Asset
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -102,8 +87,7 @@ jobs:
         asset_name: SharedTools.Web.${{ steps.extract_version.outputs.version }}.nupkg
         asset_content_type: application/octet-stream
     
-        # Upload the NuGet package as a release asset using the version number if needed.
-    - name: Upload NuGet Package as Release Asset
+    - name: Upload Tests NuGet Package as Release Asset
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
