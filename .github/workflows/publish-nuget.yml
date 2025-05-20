@@ -1,0 +1,36 @@
+name: Publish NuGet Packages
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: 9.0.x
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Build
+      run: dotnet build --no-restore --configuration Release
+    
+    - name: Test
+      run: dotnet test --no-build --configuration Release
+    
+    - name: Pack SharedTools.Web
+      run: dotnet pack SharedTools.Web/SharedTools.Web.csproj --configuration Release --no-build --output nuget-packages
+    
+    - name: Pack SharedTools.Tests
+      run: dotnet pack SharedTools.Tests/SharedTools.Tests.csproj --configuration Release --no-build --output nuget-packages
+    
+    - name: Push to NuGet
+      run: dotnet nuget push nuget-packages/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
