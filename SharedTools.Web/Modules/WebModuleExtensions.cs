@@ -11,7 +11,7 @@ namespace SharedTools.Web.Modules;
 public static class WebModuleExtensions
 {
     /// <summary>
-    /// Discovers plugin DLLs from remote URLs, downloads them with their dependencies (including .deps.json),
+    /// Discovers WebModule DLLs from remote URLs, downloads them with their dependencies (including .deps.json),
     /// loads them, registers their Razor parts (assuming views are compiled into the main DLL),
     /// merges their static assets, and invokes their ConfigureServices.
     /// </summary>
@@ -112,7 +112,7 @@ public static class WebModuleExtensions
                 continue;
             }
 
-            // Add the plugin assembly so its pages/controllers are discovered
+            // Add the webmodule assembly so its pages/controllers are discovered
             partManager.ApplicationParts.Add(new AssemblyPart(assembly));
             logger?.LogTrace("Added AssemblyPart for {AssemblyName} (for controllers/pages)", assembly.FullName ?? "UnknownAssembly");
 
@@ -155,24 +155,24 @@ public static class WebModuleExtensions
                 }
             }
             
-            var pluginTypes = allTypesInAssembly
+            var webModuleTypes = allTypesInAssembly
                 .Where(t => typeof(IWebModule).IsAssignableFrom(t)
                             && !t.IsInterface
                             && !t.IsAbstract);
 
-            logger?.LogInformation("Found {PluginTypeCount} concrete IWebModule implementations in {AssemblyName}", pluginTypes.Count(), assembly.FullName ?? "UnknownAssembly");
-            foreach (var type in pluginTypes)
+            logger?.LogInformation("Found {WebModuleTypeCount} concrete IWebModule implementations in {AssemblyName}", webModuleTypes.Count(), assembly.FullName ?? "UnknownAssembly");
+            foreach (var type in webModuleTypes)
             {
                 try
                 {
-                    var plugin = (IWebModule)Activator.CreateInstance(type)!;
-                    plugin.ConfigureServices(builder.Services); // Corrected: Pass builder.Services
-                    webModuleInstance.Add(plugin);
-                    logger?.LogInformation("Initialized and configured services for web module {PluginTypeName}", type.FullName);
+                    var webModule = (IWebModule)Activator.CreateInstance(type)!;
+                    webModule.ConfigureServices(builder.Services); // Corrected: Pass builder.Services
+                    webModuleInstance.Add(webModule);
+                    logger?.LogInformation("Initialized and configured services for web module {WebModuleTypeName}", type.FullName);
                 }
                 catch (Exception ex)
                 {
-                    logger?.LogError(ex, "Failed to create instance or configure services for web module {PluginTypeName} from assembly {AssemblyName}", type.FullName, assembly.FullName ?? "UnknownAssembly");
+                    logger?.LogError(ex, "Failed to create instance or configure services for web module {WebModuleTypeName} from assembly {AssemblyName}", type.FullName, assembly.FullName ?? "UnknownAssembly");
                 }
             }
         }
@@ -183,26 +183,26 @@ public static class WebModuleExtensions
     }
 
     /// <summary>
-    /// Invokes each plugin's Configure method to wire up endpoints and middleware.
+    /// Invokes each WebModule's Configure method to wire up endpoints and middleware.
     /// </summary>
     public static WebApplication UseWebModules(this WebApplication app)
     {
         var loggerFactory = app.Services.GetService<ILoggerFactory>();
         var logger = loggerFactory?.CreateLogger(typeof(WebModuleExtensions).FullName ?? "WebModuleExtensions");
 
-        var plugins = app.Services.GetRequiredService<IReadOnlyCollection<IWebModule>>();
-        logger?.LogInformation("Configuring {PluginCount} web modules in UseWebModules.", plugins.Count);
-        foreach (var plugin in plugins)
+        var WebModules = app.Services.GetRequiredService<IReadOnlyCollection<IWebModule>>();
+        logger?.LogInformation("Configuring {WebModuleCount} web modules in UseWebModules.", WebModules.Count);
+        foreach (var webModule in WebModules)
         {
             try
             {
-                logger?.LogTrace("Configuring web module {PluginTypeName}", plugin.GetType().FullName);
-                plugin.Configure(app);
-                logger?.LogInformation("Successfully configured web module {PluginTypeName}", plugin.GetType().FullName);
+                logger?.LogTrace("Configuring web module {WebModuleTypeName}", webModule.GetType().FullName);
+                webModule.Configure(app);
+                logger?.LogInformation("Successfully configured web module {WebModuleTypeName}", webModule.GetType().FullName);
             }
             catch (Exception ex)
             {
-                logger?.LogError(ex, "Error configuring web module {PluginTypeName}", plugin.GetType().FullName);
+                logger?.LogError(ex, "Error configuring web module {WebModuleTypeName}", webModule.GetType().FullName);
             }
         }
         return app;
