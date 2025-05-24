@@ -190,12 +190,34 @@ public static class WebModuleExtensions
                 logger?.LogTrace("No 'wwwroot' embedded resources found in assembly {AssemblyName}", assembly.FullName ?? "UnknownAssembly");
             }
             
-            var pluginTypes = assembly.GetTypes()
+            var allTypesInAssembly = assembly.GetTypes();
+            logger?.LogTrace("Inspecting {TypeCount} types in assembly {AssemblyName} for IWebModule implementations.", allTypesInAssembly.Length, assembly.FullName ?? "UnknownAssembly");
+
+            foreach (var typeInAssembly in allTypesInAssembly)
+            {
+                bool isAssignable = typeof(IWebModule).IsAssignableFrom(typeInAssembly);
+                bool isInterface = typeInAssembly.IsInterface;
+                bool isAbstract = typeInAssembly.IsAbstract;
+                logger?.LogTrace("Type: {TypeName}, Implements IWebModule: {IsAssignable}, IsInterface: {IsInterface}, IsAbstract: {IsAbstract}, AssemblyQualifiedName: {AssemblyQualifiedName}", 
+                                typeInAssembly.FullName, isAssignable, isInterface, isAbstract, typeInAssembly.AssemblyQualifiedName);
+                
+                if (isAssignable && typeInAssembly.FullName != typeof(IWebModule).FullName) // Log interfaces it implements if it's a candidate
+                {
+                    var interfaces = typeInAssembly.GetInterfaces().Select(i => i.AssemblyQualifiedName).ToArray();
+                    logger?.LogTrace("  - Type {TypeName} implements interfaces: {Interfaces}", typeInAssembly.FullName, string.Join(", ", interfaces));
+                    if (!interfaces.Contains(typeof(IWebModule).AssemblyQualifiedName))
+                    {
+                        logger?.LogWarning("  - Type {TypeName} is assignable to IWebModule but its GetInterfaces() does not include the host's IWebModule AssemblyQualifiedName. Host IWebModule: {HostIWebModuleAQN}", typeInAssembly.FullName, typeof(IWebModule).AssemblyQualifiedName);
+                    }
+                }
+            }
+            
+            var pluginTypes = allTypesInAssembly
                 .Where(t => typeof(IWebModule).IsAssignableFrom(t)
                             && !t.IsInterface
                             && !t.IsAbstract);
 
-            logger?.LogTrace("Found {PluginTypeCount} IWebModule implementations in {AssemblyName}", pluginTypes.Count(), assembly.FullName ?? "UnknownAssembly");
+            logger?.LogInformation("Found {PluginTypeCount} concrete IWebModule implementations in {AssemblyName}", pluginTypes.Count(), assembly.FullName ?? "UnknownAssembly");
             foreach (var type in pluginTypes)
             {
                 try
