@@ -223,7 +223,7 @@ public static class WebModuleExtensions
                 try
                 {
                     var plugin = (IWebModule)Activator.CreateInstance(type)!;
-                    plugin.ConfigureServices(builder.Services);
+                    plugin.ConfigureServices(builder);
                     webModuleInstance.Add(plugin);
                     logger?.LogInformation("Initialized and configured services for web module {PluginTypeName}", type.FullName);
                 }
