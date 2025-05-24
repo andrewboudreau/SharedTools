@@ -10,44 +10,6 @@ namespace SharedTools.Web.Modules;
 
 public static class WebModuleExtensions
 {
-    // Helper method to download files
-    private static async Task<bool> TryDownloadFileAsync(HttpClient httpClient, string url, string outputPath, ILogger? logger)
-    {
-        try
-        {
-            logger?.LogTrace("Attempting to download file from {Url} to {OutputPath}", url, outputPath);
-            var response = await httpClient.GetAsync(url);
-            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
-            {
-                logger?.LogTrace("File not found at {Url}", url);
-                return false; // File not found, not an error for optional files
-            }
-            response.EnsureSuccessStatusCode(); // Throw for other errors
-
-            var outputDirectory = Path.GetDirectoryName(outputPath);
-            if (outputDirectory != null && !Directory.Exists(outputDirectory))
-            {
-                Directory.CreateDirectory(outputDirectory);
-            }
-
-            using var stream = await response.Content.ReadAsStreamAsync();
-            using var fileStream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
-            await stream.CopyToAsync(fileStream);
-            logger?.LogTrace("Successfully downloaded file from {Url} to {OutputPath}", url, outputPath);
-            return true;
-        }
-        catch (HttpRequestException ex)
-        {
-            logger?.LogWarning(ex, "Failed to download file from {Url}. HTTP status: {StatusCode}", url, ex.StatusCode);
-            return false; // Indicate download failure
-        }
-        catch (Exception ex)
-        {
-            logger?.LogError(ex, "An unexpected error occurred while downloading file from {Url}", url);
-            return false;
-        }
-    }
-
     /// <summary>
     /// Discovers plugin DLLs from remote URLs, downloads them with their dependencies,
     /// loads them, registers their Razor parts, merges their static assets, and invokes their ConfigureServices.
@@ -114,7 +76,7 @@ public static class WebModuleExtensions
                 continue;
             }
             
-            string moduleSpecificTempPath = Path.Combine(baseTempPath, Path.GetFileNameWithoutExtension(dllFileName) + "_" + Guid.NewGuid().ToString("N").Substring(0, 8));
+            string moduleSpecificTempPath = Path.Combine(baseTempPath, string.Concat(Path.GetFileNameWithoutExtension(dllFileName), "_", Guid.NewGuid().ToString("N").AsSpan(0, 8)));
             if (!Directory.Exists(moduleSpecificTempPath))
             {
                 Directory.CreateDirectory(moduleSpecificTempPath);
@@ -264,4 +226,43 @@ public static class WebModuleExtensions
         }
         return app;
     }
+
+    // Helper method to download files
+    private static async Task<bool> TryDownloadFileAsync(HttpClient httpClient, string url, string outputPath, ILogger? logger)
+    {
+        try
+        {
+            logger?.LogTrace("Attempting to download file from {Url} to {OutputPath}", url, outputPath);
+            var response = await httpClient.GetAsync(url);
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                logger?.LogTrace("File not found at {Url}", url);
+                return false; // File not found, not an error for optional files
+            }
+            response.EnsureSuccessStatusCode(); // Throw for other errors
+
+            var outputDirectory = Path.GetDirectoryName(outputPath);
+            if (outputDirectory != null && !Directory.Exists(outputDirectory))
+            {
+                Directory.CreateDirectory(outputDirectory);
+            }
+
+            using var stream = await response.Content.ReadAsStreamAsync();
+            using var fileStream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            await stream.CopyToAsync(fileStream);
+            logger?.LogTrace("Successfully downloaded file from {Url} to {OutputPath}", url, outputPath);
+            return true;
+        }
+        catch (HttpRequestException ex)
+        {
+            logger?.LogWarning(ex, "Failed to download file from {Url}. HTTP status: {StatusCode}", url, ex.StatusCode);
+            return false; // Indicate download failure
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "An unexpected error occurred while downloading file from {Url}", url);
+            return false;
+        }
+    }
+
 }
