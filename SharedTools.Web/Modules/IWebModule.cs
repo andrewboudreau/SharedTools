@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace SharedTools.Web.Modules;
 
@@ -8,7 +9,7 @@ namespace SharedTools.Web.Modules;
 public interface IWebModule
 {
     /// Register DI services needed by the plugin.  
-    void ConfigureServices(WebApplicationBuilder builder);
+    void ConfigureServices(IServiceCollection services);
 
     /// Configure plugin-specific endpoints or middleware into the app.  
     void Configure(WebApplication app);

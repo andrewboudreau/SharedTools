@@ -11,8 +11,9 @@ namespace SharedTools.Web.Modules;
 public static class WebModuleExtensions
 {
     /// <summary>
-    /// Discovers plugin DLLs from remote URLs, downloads them with their dependencies,
-    /// loads them, registers their Razor parts, merges their static assets, and invokes their ConfigureServices.
+    /// Discovers plugin DLLs from remote URLs, downloads them with their dependencies (including .deps.json),
+    /// loads them, registers their Razor parts (assuming views are compiled into the main DLL),
+    /// merges their static assets, and invokes their ConfigureServices.
     /// </summary>
     public static async Task<WebApplicationBuilder> AddWebModules(this WebApplicationBuilder builder, IEnumerable<string> mainAssemblyUrls)
     {
@@ -111,35 +112,15 @@ public static class WebModuleExtensions
                 continue;
             }
 
-            string viewsDllFileName = dllFileName.Replace(".dll", ".Views.dll", StringComparison.OrdinalIgnoreCase);
-            string viewsDllUrl = mainAssemblyUrl.Replace(".dll", ".Views.dll", StringComparison.OrdinalIgnoreCase);
-            string localViewsDllPath = Path.Combine(moduleSpecificTempPath, viewsDllFileName);
-
-            logger?.LogTrace("Attempting to download views assembly {ViewsDllFileName} from {ViewsDllUrl}", viewsDllFileName, viewsDllUrl);
-            if (await TryDownloadFileAsync(httpClient, viewsDllUrl, localViewsDllPath, logger))
-            {
-                if (File.Exists(localViewsDllPath)) 
-                {
-                    try
-                    {
-                        var viewsAssembly = Assembly.LoadFrom(localViewsDllPath);
-                        partManager.ApplicationParts.Add(new CompiledRazorAssemblyPart(viewsAssembly));
-                        logger?.LogInformation("Successfully loaded and registered views assembly {ViewsAssemblyName} from {LocalViewsDllPath}", viewsAssembly.FullName ?? "UnknownViewsAssembly", localViewsDllPath);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger?.LogWarning(ex, "Failed to load views assembly from {LocalViewsDllPath}, though it was downloaded.", localViewsDllPath);
-                    }
-                }
-            }
-            else
-            {
-                logger?.LogTrace("Views assembly {ViewsDllFileName} not found or failed to download from {ViewsDllUrl}", viewsDllFileName, viewsDllUrl);
-            }
-            
+            // Add the plugin assembly so its pages/controllers are discovered
             partManager.ApplicationParts.Add(new AssemblyPart(assembly));
-            logger?.LogTrace("Added AssemblyPart for {AssemblyName}", assembly.FullName ?? "UnknownAssembly");
+            logger?.LogTrace("Added AssemblyPart for {AssemblyName} (for controllers/pages)", assembly.FullName ?? "UnknownAssembly");
 
+            // Also add the main assembly as a CompiledRazorAssemblyPart for its views
+            // This assumes views are compiled into the main assembly.
+            partManager.ApplicationParts.Add(new CompiledRazorAssemblyPart(assembly));
+            logger?.LogTrace("Added CompiledRazorAssemblyPart for {AssemblyName} (for compiled views)", assembly.FullName ?? "UnknownAssembly");
+            
             var manifestResourceNames = assembly.GetManifestResourceNames();
             if (manifestResourceNames.Any(r => r.StartsWith("wwwroot", StringComparison.OrdinalIgnoreCase)))
             {
@@ -185,7 +166,7 @@ public static class WebModuleExtensions
                 try
                 {
                     var plugin = (IWebModule)Activator.CreateInstance(type)!;
-                    plugin.ConfigureServices(builder);
+                    plugin.ConfigureServices(builder.Services); // Corrected: Pass builder.Services
                     webModuleInstance.Add(plugin);
                     logger?.LogInformation("Initialized and configured services for web module {PluginTypeName}", type.FullName);
                 }
@@ -264,5 +245,4 @@ public static class WebModuleExtensions
             return false;
         }
     }
-
 }
