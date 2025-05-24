@@ -23,14 +23,4 @@ public class WebModuleLoadContext : AssemblyLoadContext
         }
         return null; // fallback to default context if not found
     }
-
-    protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)
-    {
-        string? libraryPath = resolver.ResolveUnmanagedDllToPath(unmanagedDllName);
-        if (libraryPath != null)
-        {
-            return LoadUnmanagedDllFromPath(libraryPath);
-        }
-        return IntPtr.Zero;
-    }
 }
