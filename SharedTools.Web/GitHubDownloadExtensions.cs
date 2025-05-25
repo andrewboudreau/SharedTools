@@ -12,12 +12,14 @@ public static class GitHubDownloadExtensions
         return new Uri($"https://github.com/{resource.Owner}/{resource.Repo}/releases/latest");
     }
 
-    public static Uri BuildReleaseUrl(GitHubWebModuleResource resource)
+    public static async ValueTask<Uri> BuildLatestResourceUrl(GitHubWebModuleResource resource)
     {
         if (string.IsNullOrEmpty(resource.Version))
         {
-            throw new ArgumentException("Version must be provided to build a specific release URL.", nameof(resource));
+            var version = await GetLatestReleaseVersionAsync(resource);
+            resource = resource with { Version = version.Version };
         }
+
         return new Uri($"https://github.com/{resource.Owner}/{resource.Repo}/releases/download/v{resource.Version}/{resource.FilenameBuilder(resource.Version)}");
     }
 
