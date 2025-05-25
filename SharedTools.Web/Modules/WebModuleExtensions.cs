@@ -88,7 +88,7 @@ public static class WebModuleExtensions
             try
             {
                 var webModule = (IWebModule)Activator.CreateInstance(type)!;
-                webModule.ConfigureServices(builder.Services);
+                webModule.ConfigureBuilder(builder);
                 webModuleInstances.Add(webModule);
                 logger?.LogInformation("Initialized and configured services for web module {WebModuleTypeName} from {AssemblyName}", type.FullName, assembly.FullName ?? "UnknownAssembly");
             }
@@ -116,7 +116,7 @@ public static class WebModuleExtensions
         }
         var env = webHostEnvironment; // Use IWebHostEnvironment
         var partManager = builder.Services.AddRazorPages().PartManager;
-        var webModuleInstances = new List<IWebModule>(); // Renamed from webModuleInstance
+        var webModuleInstances = new List<IWebModule>();
 
         // Create a temporary service provider for logging during this method's execution
         // to avoid prematurely building the main application's service provider.
@@ -268,7 +268,7 @@ public static class WebModuleExtensions
             try
             {
                 logger?.LogTrace("Configuring web module {WebModuleTypeName}", webModule.GetType().FullName);
-                webModule.Configure(app);
+                webModule.ConfigureApp(app);
                 logger?.LogInformation("Successfully configured web module {WebModuleTypeName}", webModule.GetType().FullName);
             }
             catch (Exception ex)

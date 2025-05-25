@@ -8,9 +8,7 @@ namespace SharedTools.Web.Modules;
 /// </summary>  
 public interface IWebModule
 {
-    /// Register DI services needed by the WebModule plugin.  
-    void ConfigureServices(IServiceCollection services);
+    void ConfigureBuilder(WebApplicationBuilder builder);
 
-    /// Configure WebModule-specific endpoints or middleware into the app.  
-    void Configure(WebApplication app);
+    void ConfigureApp(WebApplication app);
 }
