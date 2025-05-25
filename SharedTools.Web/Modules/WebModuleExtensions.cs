@@ -107,7 +107,7 @@ public static class WebModuleExtensions
     /// </summary>
     public static async Task<WebApplicationBuilder> AddWebModules(
         this WebApplicationBuilder builder,
-        IEnumerable<string> mainAssemblyUrls,
+        IEnumerable<Uri> mainAssemblyUrls,
         IEnumerable<Assembly>? explicitAssemblies = null)
     {
         if (builder.Environment is not IWebHostEnvironment webHostEnvironment)
@@ -126,7 +126,7 @@ public static class WebModuleExtensions
             loggingBuilder.AddDebug();
             loggingBuilder.AddConsole(); // Add console logger for visibility during setup
         });
-        
+
         ILogger? logger = null; // Initialize logger to null
         await using var tempLoggingProvider = tempLoggingServices.BuildServiceProvider();
         try
@@ -155,17 +155,16 @@ public static class WebModuleExtensions
             using var httpClient = new HttpClient();
             foreach (var mainAssemblyUrl in mainAssemblyUrls)
             {
-                if (string.IsNullOrWhiteSpace(mainAssemblyUrl))
+                if (!mainAssemblyUrl.IsAbsoluteUri)
                 {
-                    logger?.LogWarning("Skipping empty or whitespace main assembly URL.");
+                    logger?.LogWarning("Skipping relative main assembly URL '{MainAssemblyUrl}'.", mainAssemblyUrl);
                     continue;
                 }
 
                 string dllFileName;
                 try
                 {
-                    Uri uri = new(mainAssemblyUrl);
-                    dllFileName = Path.GetFileName(uri.LocalPath);
+                    dllFileName = Path.GetFileName(mainAssemblyUrl.LocalPath);
                     if (string.IsNullOrEmpty(dllFileName) || !dllFileName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
                     {
                         logger?.LogWarning("Invalid URL or cannot determine DLL filename from URL: {MainAssemblyUrl}. Skipping.", mainAssemblyUrl);
@@ -188,17 +187,17 @@ public static class WebModuleExtensions
                 string localDllPath = Path.Combine(moduleSpecificTempPath, dllFileName);
 
                 logger?.LogInformation("Downloading main assembly {DllFileName} from {MainAssemblyUrl}", dllFileName, mainAssemblyUrl);
-                if (!await TryDownloadFileAsync(httpClient, mainAssemblyUrl, localDllPath, logger))
+                if (!await TryDownloadFileAsync(httpClient, mainAssemblyUrl.ToString(), localDllPath, logger))
                 {
                     logger?.LogError("Failed to download main assembly {DllFileName} from {MainAssemblyUrl}. Skipping module.", dllFileName, mainAssemblyUrl);
                     continue;
                 }
 
                 string depsJsonFileName = dllFileName.Replace(".dll", ".deps.json", StringComparison.OrdinalIgnoreCase);
-                string depsJsonUrl = mainAssemblyUrl.Replace(".dll", ".deps.json", StringComparison.OrdinalIgnoreCase);
+                Uri depsJsonUrl = new(mainAssemblyUrl.ToString().Replace(".dll", ".deps.json", StringComparison.OrdinalIgnoreCase));
                 string localDepsJsonPath = Path.Combine(moduleSpecificTempPath, depsJsonFileName);
                 logger?.LogTrace("Attempting to download deps.json for {DllFileName} from {DepsJsonUrl}", dllFileName, depsJsonUrl);
-                await TryDownloadFileAsync(httpClient, depsJsonUrl, localDepsJsonPath, logger);
+                await TryDownloadFileAsync(httpClient, depsJsonUrl.ToString(), localDepsJsonPath, logger);
 
                 Assembly assembly;
                 try
@@ -241,7 +240,7 @@ public static class WebModuleExtensions
                     logger?.LogTrace("Skipping dynamic assembly: {AssemblyName}", assembly.FullName);
                     continue;
                 }
-                
+
                 // We assume if an assembly is explicitly provided, it's a candidate.
                 logger?.LogInformation("Considering explicitly provided loaded assembly {AssemblyName} as a candidate for web modules.", assembly.FullName);
                 ProcessAssemblyForWebModules(assembly, builder, partManager, webModuleInstances, logger, env);
@@ -275,7 +274,7 @@ public static class WebModuleExtensions
             catch (Exception ex)
             {
                 logger?.LogError(ex, "Error configuring web module {WebModuleTypeName}", webModule.GetType().FullName);
-             }
+            }
         }
         return app;
     }

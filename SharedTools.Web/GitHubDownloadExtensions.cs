@@ -3,20 +3,27 @@ using System.Text.RegularExpressions;
 
 namespace SharedTools.Web;
 
+public record GitHubWebModuleResource(string Owner, string Repo, Func<string, string> FilenameBuilder, string? Version = null);
+
 public static class GitHubDownloadExtensions
 {
-    public static Uri BuildLatestUrl(string repo, string owner)
+    public static Uri BuildLatestUrl(GitHubWebModuleResource resource)
     {
-        return new Uri($"https://github.com/{owner}/{repo}/releases/latest");
+        return new Uri($"https://github.com/{resource.Owner}/{resource.Repo}/releases/latest");
     }
 
-    public static Uri BuildReleaseUrl(string repo, string owner, string version, Func<string, string> filenameBuilder)
+    public static Uri BuildReleaseUrl(GitHubWebModuleResource resource)
     {
-        return new Uri($"https://github.com/{owner}/{repo}/releases/download/v{version}/{filenameBuilder(version)}");
+        if (string.IsNullOrEmpty(resource.Version))
+        {
+            throw new ArgumentException("Version must be provided to build a specific release URL.", nameof(resource));
+        }
+        return new Uri($"https://github.com/{resource.Owner}/{resource.Repo}/releases/download/v{resource.Version}/{resource.FilenameBuilder(resource.Version)}");
     }
 
-    public static async Task<(string Version, Uri ReleaseUrl)> GetLatestReleaseVersionAsync(string latestUrl)
+    public static async Task<(string Version, Uri ReleaseUrl)> GetLatestReleaseVersionAsync(GitHubWebModuleResource resource)
     {
+        var latestUrl = BuildLatestUrl(resource);
         // Create a handler to prevent auto-redirect
         var handler = new HttpClientHandler { AllowAutoRedirect = false };
         using var httpClient = new HttpClient(handler);
