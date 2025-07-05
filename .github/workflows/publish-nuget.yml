@@ -17,7 +17,7 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v3
       with:
-        dotnet-version: 9.0.x
+        dotnet-version: 10.0.x
     
     # Extract version number from tag (assuming tags like v9.0.1)
     - name: Extract version from tag
