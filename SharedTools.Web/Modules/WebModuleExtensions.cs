@@ -6,6 +6,7 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging;
 
 using NuGet.Configuration;
+using NuGet.Frameworks;
 using NuGet.Packaging;
 using NuGet.Packaging.Core;
 using NuGet.Protocol.Core.Types;
@@ -49,8 +50,7 @@ public static class WebModuleExtensions
         var repositories = CreateSourceRepositories(nuGetRepositoryUrls);
         var nuGetCacheContext = new SourceCacheContext { NoCache = false };
         var nuGetSettings = Settings.LoadDefaultSettings(root: null);
-        var targetFramework = new NuGet.Frameworks.NuGetFramework(".NETCoreApp", new Version(8, 0));
-
+        var targetFramework = new NuGet.Frameworks.NuGetFramework(".NETCoreApp", new Version(10, 0));
         logger?.LogInformation("Resolving dependencies for target framework: {Framework}", targetFramework.DotNetFrameworkName);
 
         foreach (var packageId in packageIds)
@@ -59,7 +59,6 @@ public static class WebModuleExtensions
             try
             {
                 var allPackagesToInstall = await ResolveDependencyGraphAsync(packageId, specificPackageVersion, targetFramework, repositories, nuGetCacheContext, logger);
-
                 if (allPackagesToInstall == null || !allPackagesToInstall.Any())
                 {
                     logger?.LogError("Could not resolve dependency graph for {PackageId}.", packageId);
@@ -67,82 +66,52 @@ public static class WebModuleExtensions
                 }
 
                 var rootPackageIdentity = allPackagesToInstall.First(p => p.Id.Equals(packageId, StringComparison.OrdinalIgnoreCase));
-                string extractionRootForGraph = Path.Combine(tempCachePath, $"{rootPackageIdentity.Id}.{rootPackageIdentity.Version}");
-
-                if (Directory.Exists(extractionRootForGraph))
+                string flatExtractionPath = Path.Combine(tempCachePath, $"{rootPackageIdentity.Id}.{rootPackageIdentity.Version}_flat");
+                if (Directory.Exists(flatExtractionPath))
                 {
-                    Directory.Delete(extractionRootForGraph, recursive: true);
+                    Directory.Delete(flatExtractionPath, recursive: true);
                 }
-                Directory.CreateDirectory(extractionRootForGraph);
+                Directory.CreateDirectory(flatExtractionPath);
 
-                string tempNupkgFolder = Path.Combine(extractionRootForGraph, ".nupkgs");
-                Directory.CreateDirectory(tempNupkgFolder);
-
-                var packagePathResolver = new PackagePathResolver(extractionRootForGraph);
-                try
+                logger?.LogInformation("Extracting all package dependencies to flat directory: {Path}", flatExtractionPath);
+                foreach (var packageIdentity in allPackagesToInstall)
                 {
-                    var packageExtractionContext = new PackageExtractionContext(
-                        PackageSaveMode.Defaultv3,
-                        XmlDocFileSaveMode.Skip,
-                        null,
-                        NuGetLogger);
-
-                    foreach (var packageIdentity in allPackagesToInstall)
+                    var (downloadResult, _) = await FindAndDownloadPackageAsync(packageIdentity.Id, packageIdentity.Version.ToNormalizedString(), repositories, nuGetSettings, nuGetCacheContext, logger);
+                    if (downloadResult == null)
                     {
-                        (DownloadResourceResult? downloadResult, PackageIdentity? _) =
-                            await FindAndDownloadPackageAsync(packageIdentity.Id, packageIdentity.Version.ToNormalizedString(), repositories, nuGetSettings, nuGetCacheContext, logger);
+                        logger?.LogWarning("Failed to download dependency package {PackageId}, which may cause runtime errors.", packageIdentity);
+                        continue;
+                    }
 
-                        if (downloadResult == null)
-                        {
-                            logger?.LogWarning("Failed to download dependency package {PackageId}, which may cause runtime errors.", packageIdentity);
-                            continue;
-                        }
+                    // Extract DLLs from this package into the single flat directory
+                    using (var reader = new PackageArchiveReader(downloadResult.PackageStream))
+                    {
+                        var libItems = await reader.GetLibItemsAsync(CancellationToken.None);
 
-                        using (downloadResult)
+                        // Find the library folder that is most compatible with our target framework.
+                        var nearestFramework = NuGetFrameworkUtility.GetNearest(libItems, targetFramework, f => f.TargetFramework);
+
+                        if (nearestFramework != null)
                         {
-                            string nupkgFilePath = Path.Combine(tempNupkgFolder, $"{packageIdentity.Id}.{packageIdentity.Version}.nupkg");
-                            using (var fileStream = new FileStream(nupkgFilePath, FileMode.Create, FileAccess.Write, FileShare.None))
+                            foreach (var item in nearestFramework.Items)
                             {
-                                await downloadResult.PackageStream.CopyToAsync(fileStream);
+                                // We only care about DLLs for the load context.
+                                if (item.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    // Extract the file directly into our flat path.
+                                    reader.ExtractFile(item, Path.Combine(flatExtractionPath, Path.GetFileName(item)), NuGetLogger);
+                                }
                             }
-
-                            await PackageExtractor.ExtractPackageAsync(
-                                downloadResult.PackageSource,
-                                downloadResult.PackageStream,
-                                packagePathResolver,
-                                packageExtractionContext,
-                                CancellationToken.None);
-
-                            logger?.LogTrace("Extracted dependency: {PackageId} {PackageVersion}", packageIdentity.Id, packageIdentity.Version);
                         }
                     }
-                }
-                finally
-                {
-                    if (Directory.Exists(tempNupkgFolder))
-                    {
-                        Directory.Delete(tempNupkgFolder, recursive: true);
-                    }
+                    downloadResult.Dispose();
                 }
 
-                var mainAssemblyDir = packagePathResolver.GetInstallPath(rootPackageIdentity);
-                var libFolder = Path.Combine(mainAssemblyDir, "lib");
-                if (!Directory.Exists(libFolder))
-                {
-                    logger?.LogError("Could not find a 'lib' folder inside the extracted package for {PackageId}", rootPackageIdentity.Id);
-                    continue;
-                }
-                var frameworkSpecificFolder = Directory.GetDirectories(libFolder).OrderByDescending(d => d).FirstOrDefault();
-                if (frameworkSpecificFolder == null)
-                {
-                    logger?.LogError("Could not find a framework-specific library folder inside the extracted package for {PackageId}", rootPackageIdentity.Id);
-                    continue;
-                }
-
-                string mainAssemblyPath = Path.Combine(frameworkSpecificFolder, $"{rootPackageIdentity.Id}.dll");
+                // Now, the main assembly path is inside the flat directory.
+                string mainAssemblyPath = Path.Combine(flatExtractionPath, $"{rootPackageIdentity.Id}.dll");
                 if (!File.Exists(mainAssemblyPath))
                 {
-                    logger?.LogError("Could not find main assembly {AssemblyPath} after extraction.", mainAssemblyPath);
+                    logger?.LogError("Could not find main assembly {AssemblyPath} after flat extraction.", mainAssemblyPath);
                     continue;
                 }
 
@@ -150,6 +119,8 @@ public static class WebModuleExtensions
                 try
                 {
                     logger?.LogInformation("Loading main assembly from: {AssemblyPath}", mainAssemblyPath);
+                    // The AssemblyDependencyResolver will now correctly find all dependencies
+                    // because they are in the same directory as the main assembly.
                     var loadContext = new WebModuleLoadContext(mainAssemblyPath);
                     assembly = loadContext.LoadFromAssemblyPath(mainAssemblyPath);
                 }
