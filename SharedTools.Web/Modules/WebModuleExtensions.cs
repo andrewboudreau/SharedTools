@@ -200,7 +200,7 @@ public static class WebModuleExtensions
         foreach (var packageId in packageIds)
         {
             logger?.LogInformation("Processing NuGet package: {PackageId}", packageId);
-            string packageSpecificTempPath = Path.Combine(baseTempPath, $"{packageId}_{Guid.NewGuid():N8}");
+            string packageSpecificTempPath = Path.Combine(baseTempPath, $"{packageId}_{Guid.NewGuid():N}");
             if (!Directory.Exists(packageSpecificTempPath))
             {
                 Directory.CreateDirectory(packageSpecificTempPath);
