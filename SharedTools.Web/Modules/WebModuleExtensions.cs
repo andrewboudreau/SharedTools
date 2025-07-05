@@ -4,11 +4,10 @@ using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging;
-using NuGet.Common;
+
 using NuGet.Configuration;
 using NuGet.Packaging;
 using NuGet.Packaging.Core;
-using NuGet.Protocol;
 using NuGet.Protocol.Core.Types;
 using NuGet.Versioning;
 
@@ -18,14 +17,181 @@ namespace SharedTools.Web.Modules;
 
 public static class WebModuleExtensions
 {
+    private static NuGet.Common.ILogger NuGetLogger { get; set; } = NuGet.Common.NullLogger.Instance;
+
+    
+    /// <summary>
+    /// Discovers WebModules from NuGet packages, resolves their dependencies, downloads them, 
+    /// extracts their contents, loads them, and integrates them into the application.
+    /// </summary>
+    public static async Task<WebApplicationBuilder> AddWebModules(
+        this WebApplicationBuilder builder,
+        IEnumerable<string> packageIds,
+        IEnumerable<string>? nuGetRepositoryUrls = null,
+        string? specificPackageVersion = null)
+    {
+        if (builder.Environment is not IWebHostEnvironment env)
+        {
+            throw new InvalidOperationException("AddWebModules requires an IWebHostEnvironment.");
+        }
+
+        var partManager = builder.Services.AddRazorPages().PartManager;
+        var webModuleInstances = GetOrCreateWebModuleList(builder.Services);
+        var logger = CreateTemporaryLogger();
+        NuGetLogger = logger != null ? new NugetLoggerAdapter(logger) : NuGet.Common.NullLogger.Instance;
+
+        var processedAssemblies = new HashSet<string>(webModuleInstances.Select(m => m.GetType().Assembly.FullName).Where(n => n != null)!);
+
+        string tempCachePath = Path.Combine(Path.GetTempPath(), "SharedTools_NuGetWebModulesCache");
+        Directory.CreateDirectory(tempCachePath);
+        logger?.LogInformation("Using temporary cache directory: {BaseTempPath}", tempCachePath);
+
+        var repositories = CreateSourceRepositories(nuGetRepositoryUrls);
+        var nuGetCacheContext = new SourceCacheContext { NoCache = false };
+        var nuGetSettings = Settings.LoadDefaultSettings(root: null);
+        var targetFramework = new NuGet.Frameworks.NuGetFramework(".NETCoreApp", new Version(8, 0));
+
+        logger?.LogInformation("Resolving dependencies for target framework: {Framework}", targetFramework.DotNetFrameworkName);
+
+        foreach (var packageId in packageIds)
+        {
+            logger?.LogInformation("--- Processing root package: {PackageId} ---", packageId);
+            try
+            {
+                var allPackagesToInstall = await ResolveDependencyGraphAsync(packageId, specificPackageVersion, targetFramework, repositories, nuGetCacheContext, logger);
+
+                if (allPackagesToInstall == null || !allPackagesToInstall.Any())
+                {
+                    logger?.LogError("Could not resolve dependency graph for {PackageId}.", packageId);
+                    continue;
+                }
+
+                var rootPackageIdentity = allPackagesToInstall.First(p => p.Id.Equals(packageId, StringComparison.OrdinalIgnoreCase));
+                string extractionRootForGraph = Path.Combine(tempCachePath, $"{rootPackageIdentity.Id}.{rootPackageIdentity.Version}");
+
+                if (Directory.Exists(extractionRootForGraph))
+                {
+                    Directory.Delete(extractionRootForGraph, recursive: true);
+                }
+                Directory.CreateDirectory(extractionRootForGraph);
+
+                string tempNupkgFolder = Path.Combine(extractionRootForGraph, ".nupkgs");
+                Directory.CreateDirectory(tempNupkgFolder);
+
+                var packagePathResolver = new PackagePathResolver(extractionRootForGraph);
+                try
+                {
+                    var packageExtractionContext = new PackageExtractionContext(
+                        PackageSaveMode.Defaultv3,
+                        XmlDocFileSaveMode.Skip,
+                        null,
+                        NuGetLogger);
+
+                    foreach (var packageIdentity in allPackagesToInstall)
+                    {
+                        (DownloadResourceResult? downloadResult, PackageIdentity? _) =
+                            await FindAndDownloadPackageAsync(packageIdentity.Id, packageIdentity.Version.ToNormalizedString(), repositories, nuGetSettings, nuGetCacheContext, logger);
+
+                        if (downloadResult == null)
+                        {
+                            logger?.LogWarning("Failed to download dependency package {PackageId}, which may cause runtime errors.", packageIdentity);
+                            continue;
+                        }
+
+                        using (downloadResult)
+                        {
+                            string nupkgFilePath = Path.Combine(tempNupkgFolder, $"{packageIdentity.Id}.{packageIdentity.Version}.nupkg");
+                            using (var fileStream = new FileStream(nupkgFilePath, FileMode.Create, FileAccess.Write, FileShare.None))
+                            {
+                                await downloadResult.PackageStream.CopyToAsync(fileStream);
+                            }
+
+                            await PackageExtractor.ExtractPackageAsync(
+                                downloadResult.PackageSource,
+                                downloadResult.PackageStream,
+                                packagePathResolver,
+                                packageExtractionContext,
+                                CancellationToken.None);
+
+                            logger?.LogTrace("Extracted dependency: {PackageId} {PackageVersion}", packageIdentity.Id, packageIdentity.Version);
+                        }
+                    }
+                }
+                finally
+                {
+                    if (Directory.Exists(tempNupkgFolder))
+                    {
+                        Directory.Delete(tempNupkgFolder, recursive: true);
+                    }
+                }
+
+                var mainAssemblyDir = packagePathResolver.GetInstallPath(rootPackageIdentity);
+                var libFolder = Path.Combine(mainAssemblyDir, "lib");
+                if (!Directory.Exists(libFolder))
+                {
+                    logger?.LogError("Could not find a 'lib' folder inside the extracted package for {PackageId}", rootPackageIdentity.Id);
+                    continue;
+                }
+                var frameworkSpecificFolder = Directory.GetDirectories(libFolder).OrderByDescending(d => d).FirstOrDefault();
+                if (frameworkSpecificFolder == null)
+                {
+                    logger?.LogError("Could not find a framework-specific library folder inside the extracted package for {PackageId}", rootPackageIdentity.Id);
+                    continue;
+                }
+
+                string mainAssemblyPath = Path.Combine(frameworkSpecificFolder, $"{rootPackageIdentity.Id}.dll");
+                if (!File.Exists(mainAssemblyPath))
+                {
+                    logger?.LogError("Could not find main assembly {AssemblyPath} after extraction.", mainAssemblyPath);
+                    continue;
+                }
+
+                Assembly assembly;
+                try
+                {
+                    logger?.LogInformation("Loading main assembly from: {AssemblyPath}", mainAssemblyPath);
+                    var loadContext = new WebModuleLoadContext(mainAssemblyPath);
+                    assembly = loadContext.LoadFromAssemblyPath(mainAssemblyPath);
+                }
+                catch (Exception ex)
+                {
+                    logger?.LogError(ex, "Failed to load assembly from {MainAssemblyPath}", mainAssemblyPath);
+                    continue;
+                }
+
+                if (processedAssemblies.Contains(assembly.FullName!))
+                {
+                    logger?.LogInformation("Assembly {AssemblyName} was already processed. Skipping.", assembly.FullName);
+                    continue;
+                }
+
+                ProcessAssemblyForWebModules(assembly, builder, partManager, webModuleInstances, logger, env);
+                processedAssemblies.Add(assembly.FullName!);
+            }
+            catch (Exception ex)
+            {
+                logger?.LogError(ex, "An unhandled error occurred while processing package {PackageId}", packageId);
+            }
+        }
+
+        builder.Services.AddSingleton<IReadOnlyCollection<IWebModule>>(webModuleInstances.AsReadOnly());
+        logger?.LogInformation("Registered {WebModuleCount} web modules in total.", webModuleInstances.Count);
+        return builder;
+    }
+
     private static void ProcessAssemblyForWebModules(
         Assembly assembly,
         WebApplicationBuilder builder,
         ApplicationPartManager partManager,
         List<IWebModule> webModuleInstances,
-        Microsoft.Extensions.Logging.ILogger? logger,
+        ILogger? logger,
         IWebHostEnvironment env)
     {
+        if (logger is not null)
+        {
+            NuGetLogger = new NugetLoggerAdapter(logger);
+        }
+
         logger?.LogInformation("Processing assembly {AssemblyName} for web modules.", assembly.FullName ?? "UnknownAssembly");
 
         // Add the assembly for controllers/pages discovery
@@ -106,369 +272,246 @@ public static class WebModuleExtensions
         }
     }
 
-
     /// <summary>
-    /// Discovers WebModules from NuGet packages, downloads them, extracts their contents,
-    /// loads them, registers their Razor parts, merges static assets, and invokes ConfigureServices.
-    /// Supports loading multiple packages with automatic dependency resolution.
+    /// Resolves the full dependency graph for a given package.
     /// </summary>
-    public static async Task<WebApplicationBuilder> AddWebModules(
-        this WebApplicationBuilder builder,
-        IEnumerable<string> packageIds,
-        IEnumerable<string>? nuGetRepositoryUrls = null,
-        string? specificPackageVersion = null)
+    private static async Task<IEnumerable<PackageIdentity>?> ResolveDependencyGraphAsync(
+        string packageId,
+        string? version,
+        NuGet.Frameworks.NuGetFramework framework,
+        IEnumerable<SourceRepository> repositories,
+        SourceCacheContext cacheContext,
+        ILogger? logger)
     {
-        if (builder.Environment is not IWebHostEnvironment webHostEnvironment)
-        {
-            throw new InvalidOperationException("AddWebModulesFromNuGet requires an IWebHostEnvironment. Ensure the application is a web application.");
-        }
-        var env = webHostEnvironment;
-        var partManager = builder.Services.AddRazorPages().PartManager;
+        var resolvedPackages = new Dictionary<string, PackageIdentity>(StringComparer.OrdinalIgnoreCase);
+        var packagesToProcess = new Queue<PackageIdentity>();
 
-        var existingServiceDescriptor = builder.Services.FirstOrDefault(s => s.ServiceType == typeof(IReadOnlyCollection<IWebModule>));
-        List<IWebModule> webModuleInstances;
-        if (existingServiceDescriptor?.ImplementationInstance is List<IWebModule> existingList)
+        // Find the initial package version
+        NuGetVersion? initialVersion = null;
+        if (!string.IsNullOrEmpty(version) && NuGetVersion.TryParse(version, out var parsedVersion))
         {
-            webModuleInstances = existingList;
-        }
-        else if (existingServiceDescriptor?.ImplementationInstance is IReadOnlyCollection<IWebModule> existingCollection)
-        {
-            webModuleInstances = new List<IWebModule>(existingCollection);
+            initialVersion = parsedVersion;
         }
         else
         {
-            webModuleInstances = new List<IWebModule>();
+            foreach (var repo in repositories)
+            {
+                var findResource = await repo.GetResourceAsync<FindPackageByIdResource>();
+                var allVersions = await findResource.GetAllVersionsAsync(packageId, cacheContext, NuGetLogger, CancellationToken.None);
+                // Prefer the latest stable version, otherwise take the latest pre-release.
+                initialVersion = allVersions?.Where(v => !v.IsPrerelease).Max() ?? allVersions?.Max();
+                if (initialVersion != null) break;
+            }
         }
 
-        var tempLoggingServices = new ServiceCollection();
-        tempLoggingServices.AddLogging(loggingBuilder =>
+        if (initialVersion == null)
         {
-            loggingBuilder.AddDebug();
-            loggingBuilder.AddConsole();
-        });
+            logger?.LogError("Could not determine an initial version for root package {PackageId}", packageId);
+            return null;
+        }
 
-        Microsoft.Extensions.Logging.ILogger? logger = null;
-        await using var tempLoggingProvider = tempLoggingServices.BuildServiceProvider();
+        var initialIdentity = new PackageIdentity(packageId, initialVersion);
+        packagesToProcess.Enqueue(initialIdentity);
+        resolvedPackages.Add(packageId, initialIdentity);
+
+        while (packagesToProcess.Count > 0)
+        {
+            var currentPackage = packagesToProcess.Dequeue();
+            logger?.LogTrace("Analyzing dependencies for {PackageId}", currentPackage);
+
+            SourceRepository? sourceRepo = null;
+            SourcePackageDependencyInfo? dependencyInfo = null;
+
+            foreach (var repo in repositories)
+            {
+                var depInfoResource = await repo.GetResourceAsync<DependencyInfoResource>();
+                dependencyInfo = await depInfoResource.ResolvePackage(currentPackage, framework, cacheContext, NuGetLogger, CancellationToken.None);
+                if (dependencyInfo != null)
+                {
+                    sourceRepo = repo;
+                    break;
+                }
+            }
+
+            if (dependencyInfo == null)
+            {
+                logger?.LogWarning("Could not find dependency info for package {PackageId}. It might be a package without dependencies.", currentPackage);
+                continue; // This is not necessarily an error. The package might have no dependencies.
+            }
+
+            foreach (var dependency in dependencyInfo.Dependencies)
+            {
+                // Find the best version for this dependency from its repository
+                var findResource = await sourceRepo!.GetResourceAsync<FindPackageByIdResource>();
+                var versions = await findResource.GetAllVersionsAsync(dependency.Id, cacheContext, NuGetLogger, CancellationToken.None);
+
+                // *** THE CORRECTED LOGIC IS HERE ***
+                // Use the VersionRange from the dependency to find the best matching version from the list we just fetched.
+                var bestVersion = dependency.VersionRange.FindBestMatch(versions);
+
+                if (bestVersion == null)
+                {
+                    logger?.LogWarning("Could not find a compatible version for dependency {DependencyId} with range {VersionRange}", dependency.Id, dependency.VersionRange);
+                    continue;
+                }
+
+                // If we haven't seen this package ID before, or if the new dependency has a higher version, process it.
+                // This is a simplified "highest version wins" conflict resolution strategy.
+                if (!resolvedPackages.TryGetValue(dependency.Id, out var existing) || bestVersion > existing.Version)
+                {
+                    var newIdentity = new PackageIdentity(dependency.Id, bestVersion);
+
+                    // If we are upgrading a package we've already seen, we don't need to re-queue it,
+                    // just update the dictionary. But if it's new, we need to process its dependencies.
+                    if (existing == null)
+                    {
+                        packagesToProcess.Enqueue(newIdentity);
+                    }
+
+                    resolvedPackages[dependency.Id] = newIdentity;
+                    logger?.LogTrace("  -> Resolved dependency: {PackageId} {Version}", newIdentity.Id, newIdentity.Version);
+                }
+            }
+        }
+
+        return resolvedPackages.Values;
+    }
+
+    private static async Task<(DownloadResourceResult? downloadResult, PackageIdentity? packageIdentity)> FindAndDownloadPackageAsync(
+        string packageId,
+        string? specificVersion,
+        IEnumerable<SourceRepository> repositories,
+        ISettings nugetSettings,
+        SourceCacheContext cacheContext,
+        ILogger? logger)
+    {
+        PackageIdentity? packageIdentity = null;
+        DownloadResourceResult? downloadResult = null;
+
+        foreach (var repo in repositories)
+        {
+            logger?.LogTrace("Searching for {PackageId} in {Repository}", packageId, repo.PackageSource.Name);
+            var findResource = await repo.GetResourceAsync<FindPackageByIdResource>();
+            if (findResource == null) continue;
+
+            var allVersions = await findResource.GetAllVersionsAsync(packageId, cacheContext, NuGetLogger, CancellationToken.None);
+            if (allVersions == null || !allVersions.Any()) continue;
+
+            NuGetVersion? versionToDownload = null;
+            if (!string.IsNullOrEmpty(specificVersion) && NuGetVersion.TryParse(specificVersion, out var parsedVersion))
+            {
+                versionToDownload = allVersions.FirstOrDefault(v => v.Equals(parsedVersion));
+            }
+            versionToDownload ??= allVersions.Where(v => !v.IsPrerelease).Max() ?? allVersions.Max();
+
+            if (versionToDownload == null) continue;
+
+            packageIdentity = new PackageIdentity(packageId, versionToDownload);
+            var downloadResource = await repo.GetResourceAsync<DownloadResource>();
+            if (downloadResource == null) continue;
+
+            var globalPackagesFolder = SettingsUtility.GetGlobalPackagesFolder(nugetSettings);
+            var downloadContext = new PackageDownloadContext(cacheContext, Path.GetTempPath(), cacheContext.DirectDownload);
+
+            logger?.LogInformation("Downloading {PackageId} version {PackageVersion} from {Repository}", packageId, versionToDownload, repo.PackageSource.Name);
+            downloadResult = await downloadResource.GetDownloadResourceResultAsync(packageIdentity, downloadContext, globalPackagesFolder, NuGetLogger, CancellationToken.None);
+
+            if (downloadResult?.Status == DownloadResourceResultStatus.Available)
+            {
+                logger?.LogInformation("Successfully downloaded package {PackageId}.", packageId);
+                return (downloadResult, packageIdentity); // Success!
+            }
+        }
+
+        logger?.LogError("Failed to find or download package {PackageId} from any repository.", packageId);
+        return (null, null);
+    }
+    
+    #region Helper Methods
+
+    private static List<IWebModule> GetOrCreateWebModuleList(IServiceCollection services)
+    {
+        var descriptor = services.FirstOrDefault(s => s.ServiceType == typeof(IReadOnlyCollection<IWebModule>));
+        if (descriptor?.ImplementationInstance is List<IWebModule> list)
+        {
+            services.Remove(descriptor);
+            return list;
+        }
+        if (descriptor?.ImplementationInstance is IReadOnlyCollection<IWebModule> collection)
+        {
+            services.Remove(descriptor);
+            return [.. collection];
+        }
+
+        return [];
+    }
+
+    private static ILogger? CreateTemporaryLogger()
+    {
         try
         {
-            var loggerFactory = tempLoggingProvider.GetService<Microsoft.Extensions.Logging.ILoggerFactory>();
-            logger = loggerFactory?.CreateLogger(typeof(WebModuleExtensions).FullName ?? "WebModuleExtensions");
+            using var loggerFactory = LoggerFactory.Create(builder =>
+            {
+                builder.AddConsole().SetMinimumLevel(LogLevel.Trace);
+                builder.AddDebug();
+            });
+            return loggerFactory.CreateLogger(typeof(WebModuleExtensions));
         }
         catch (Exception ex)
         {
             Console.WriteLine($"[Error] Failed to create temporary logger: {ex.Message}");
+            return null;
         }
+    }
 
-        string baseTempPath = Path.Combine(Path.GetTempPath(), "SharedTools_NuGetWebModulesCache");
-        if (!Directory.Exists(baseTempPath))
+    private static List<SourceRepository> CreateSourceRepositories(IEnumerable<string>? repositoryUrls)
+    {
+        var sources = new List<PackageSource>();
+        if (repositoryUrls != null && repositoryUrls.Any())
         {
-            Directory.CreateDirectory(baseTempPath);
-        }
-        logger?.LogInformation("Using temporary cache directory for NuGet web modules: {BaseTempPath}", baseTempPath);
-
-        var processedAssemblyFullNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var module in webModuleInstances)
-        {
-            var assemblyFullName = module.GetType().Assembly.FullName;
-            if (assemblyFullName != null)
-            {
-                processedAssemblyFullNames.Add(assemblyFullName);
-            }
-        }
-
-        var nuGetSettings = NuGet.Configuration.Settings.LoadDefaultSettings(root: null);
-        var packageSourceList = new List<NuGet.Configuration.PackageSource>();
-        if (nuGetRepositoryUrls != null && nuGetRepositoryUrls.Any())
-        {
-            foreach (var url in nuGetRepositoryUrls)
-            {
-                packageSourceList.Add(new NuGet.Configuration.PackageSource(url));
-            }
+            sources.AddRange(repositoryUrls.Select(url => new PackageSource(url)));
         }
         else
         {
-            packageSourceList.Add(new NuGet.Configuration.PackageSource("https://api.nuget.org/v3/index.json", "nuget.org"));
-        }
-        var sourceProvider = new PackageSourceProvider(nuGetSettings, packageSourceList);
-        var sourceRepositoryProvider = new SourceRepositoryProvider(sourceProvider, Repository.Provider.GetCoreV3());
-        var repositoriesToSearch = sourceRepositoryProvider.GetRepositories().ToList();
-
-        var nuGetCacheContext = new SourceCacheContext { NoCache = false, DirectDownload = true };
-        var nuGetLogger = NullLogger.Instance;
-        var cancellationToken = CancellationToken.None;
-
-        foreach (var packageId in packageIds)
-        {
-            logger?.LogInformation("Processing NuGet package: {PackageId}", packageId);
-            string packageSpecificTempPath = Path.Combine(baseTempPath, $"{packageId}_{Guid.NewGuid():N}");
-            if (!Directory.Exists(packageSpecificTempPath))
-            {
-                Directory.CreateDirectory(packageSpecificTempPath);
-            }
-
-            PackageIdentity? packageIdentity = null;
-            DownloadResourceResult? downloadResult = null;
-
-            foreach (var sourceRepository in repositoriesToSearch)
-            {
-                var findPackageByIdResource = await sourceRepository.GetResourceAsync<FindPackageByIdResource>(cancellationToken);
-                if (findPackageByIdResource == null)
-                {
-                    logger?.LogWarning("Could not get FindPackageByIdResource from repository {SourceRepository}", sourceRepository.PackageSource.Source);
-                    continue;
-                }
-
-                IEnumerable<NuGetVersion>? versions = null;
-                try
-                {
-                    versions = await findPackageByIdResource.GetAllVersionsAsync(packageId, nuGetCacheContext, nuGetLogger, cancellationToken);
-                }
-                catch (Exception ex)
-                {
-                    logger?.LogWarning(ex, "Failed to get versions for package {PackageId} from repository {SourceRepository}", packageId, sourceRepository.PackageSource.Source);
-                }
-
-                if (versions == null || !versions.Any())
-                {
-                    logger?.LogTrace("Package {PackageId} not found or no versions available in repository {SourceRepository}.", packageId, sourceRepository.PackageSource.Source);
-                    continue;
-                }
-
-                NuGetVersion? selectedVersion = null;
-                if (!string.IsNullOrEmpty(specificPackageVersion))
-                {
-                    if (NuGetVersion.TryParse(specificPackageVersion, out var parsedVersion))
-                    {
-                        selectedVersion = versions.FirstOrDefault(v => v.Equals(parsedVersion));
-                    }
-                    if (selectedVersion == null)
-                    {
-                        logger?.LogWarning("Specified version {SpecificPackageVersion} for package {PackageId} not found in repository {SourceRepository}. Trying latest stable.", specificPackageVersion, packageId, sourceRepository.PackageSource.Source);
-                    }
-                }
-
-                if (selectedVersion == null)
-                {
-                    selectedVersion = versions.Where(v => !v.IsPrerelease).OrderByDescending(v => v).FirstOrDefault();
-                    if (selectedVersion == null) selectedVersion = versions.OrderByDescending(v => v).FirstOrDefault();
-                }
-
-                if (selectedVersion == null)
-                {
-                    logger?.LogWarning("Could not determine a suitable version for package {PackageId} in repository {SourceRepository}.", packageId, sourceRepository.PackageSource.Source);
-                    continue;
-                }
-
-                packageIdentity = new PackageIdentity(packageId, selectedVersion);
-                var downloadResource = await sourceRepository.GetResourceAsync<DownloadResource>(cancellationToken);
-                if (downloadResource == null)
-                {
-                    logger?.LogWarning("Could not get DownloadResource from repository {SourceRepository}", sourceRepository.PackageSource.Source);
-                    continue;
-                }
-
-                var packageDownloadContext = new PackageDownloadContext(nuGetCacheContext, packageSpecificTempPath, nuGetCacheContext.DirectDownload);
-
-                logger?.LogInformation("Attempting to download package {PackageId} version {PackageVersion} from {SourceRepository} to {DownloadPath}", packageId, selectedVersion, sourceRepository.PackageSource.Source, packageSpecificTempPath);
-
-                string globalPackagesFolder = SettingsUtility.GetGlobalPackagesFolder(nuGetSettings);
-
-                downloadResult = await downloadResource.GetDownloadResourceResultAsync(
-                    packageIdentity,
-                    packageDownloadContext,
-                    globalPackagesFolder,
-                    nuGetLogger,
-                    cancellationToken);
-
-                if (downloadResult != null && downloadResult.Status == DownloadResourceResultStatus.Available)
-                {
-                    break;
-                }
-                else
-                {
-                    logger?.LogWarning("Failed to download package {PackageId} from {SourceRepository}. Status: {Status}", packageId, sourceRepository.PackageSource.Source, downloadResult?.Status.ToString() ?? "Unknown");
-                    downloadResult = null;
-                }
-            }
-
-            if (downloadResult == null || downloadResult.Status != DownloadResourceResultStatus.Available || packageIdentity == null)
-            {
-                logger?.LogError("Failed to download package {PackageId} from all configured repositories or determine package identity.", packageId);
-                continue;
-            }
-
-            string nupkgFilePath;
-            if (downloadResult.PackageStream is FileStream fs)
-            {
-                nupkgFilePath = fs.Name;
-            }
-            else
-            {
-                var tempNupkgFileName = Path.Combine(packageSpecificTempPath, $"{packageIdentity.Id}.{packageIdentity.Version}.nupkg");
-                using (var fileStream = new FileStream(tempNupkgFileName, FileMode.Create, FileAccess.Write, FileShare.None))
-                {
-                    await downloadResult.PackageStream.CopyToAsync(fileStream);
-                }
-                nupkgFilePath = tempNupkgFileName;
-                logger?.LogTrace("Package stream was not a FileStream; copied to {NupkgFilePath}", nupkgFilePath);
-            }
-            downloadResult.PackageStream.Dispose();
-
-            logger?.LogInformation("Successfully downloaded package {PackageId} to {PackagePath}", packageId, nupkgFilePath);
-
-            var packageExtractionPath = Path.Combine(packageSpecificTempPath, "extracted");
-            Directory.CreateDirectory(packageExtractionPath);
-
-            logger?.LogInformation("Extracting package {PackageId} to {PackageExtractionPath}", packageId, packageExtractionPath);
-            List<string> libAssemblyPaths = new List<string>();
-            try
-            {
-                using var packageReader = new PackageArchiveReader(nupkgFilePath);
-
-                // Corrected ExtractPackageFileDelegate signature and implementation
-                ExtractPackageFileDelegate extractDelegate = (string sourceFileInNupkg, string targetDiskPath, Stream fileContentStream) =>
-                {
-                    var dir = Path.GetDirectoryName(targetDiskPath);
-                    if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-                    {
-                        Directory.CreateDirectory(dir);
-                    }
-                    // The fileContentStream is the stream from the nupkg for the sourceFileInNupkg.
-                    // We need to write this stream to targetDiskPath.
-                    using (var fileStreamOnDisk = new FileStream(targetDiskPath, FileMode.Create, FileAccess.Write, FileShare.None))
-                    {
-                        fileContentStream.CopyTo(fileStreamOnDisk);
-                    }
-                    return targetDiskPath; // Return the path of the extracted file on disk
-                };
-
-                var allLibFilesFromNupkg = packageReader.GetFiles("lib")
-                                               .Where(f => f.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
-                                               .ToList();
-
-                if (allLibFilesFromNupkg.Any())
-                {
-                    // CopyFilesAsync will iterate through allLibFilesFromNupkg.
-                    // For each file, it will call extractDelegate with:
-                    //   - sourceFileInNupkg: the entry from allLibFilesFromNupkg (e.g., "lib/net8.0/MyLib.dll")
-                    //   - targetDiskPath: the calculated full path on disk (e.g., "C:\temp\extracted\lib\net8.0\MyLib.dll")
-                    //   - fileContentStream: the stream for that file from the nupkg.
-                    var extractedFiles = await packageReader.CopyFilesAsync(packageExtractionPath, allLibFilesFromNupkg, extractDelegate, nuGetLogger, cancellationToken);
-                    libAssemblyPaths.AddRange(extractedFiles);
-                }
-
-                var contentFileGroups = packageReader.GetContentItems();
-                foreach (var group in contentFileGroups)
-                {
-                    foreach (var itemPathInNupkg in group.Items)
-                    {
-                        string relativePath = itemPathInNupkg;
-                        if (relativePath.StartsWith("content/", StringComparison.OrdinalIgnoreCase))
-                            relativePath = relativePath.Substring("content/".Length);
-                        else if (relativePath.StartsWith("contentFiles/", StringComparison.OrdinalIgnoreCase))
-                        {
-                            int wwwrootIndex = relativePath.IndexOf("wwwroot", StringComparison.OrdinalIgnoreCase);
-                            if (wwwrootIndex > "contentFiles/".Length)
-                            {
-                                relativePath = relativePath.Substring(wwwrootIndex);
-                            }
-                            else
-                            {
-                                logger?.LogTrace("Skipping content file for wwwroot mapping (path too short or wwwroot not found at expected location): {ItemPathInNupkg}", itemPathInNupkg);
-                                continue;
-                            }
-                        }
-
-                        if (relativePath.StartsWith("wwwroot", StringComparison.OrdinalIgnoreCase))
-                        {
-                            string targetFilePath = Path.Combine(env.WebRootPath, relativePath.Substring("wwwroot".Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-                            string targetDirectory = Path.GetDirectoryName(targetFilePath)!;
-                            if (!Directory.Exists(targetDirectory))
-                            {
-                                Directory.CreateDirectory(targetDirectory);
-                            }
-                            using Stream sourceStream = packageReader.GetStream(itemPathInNupkg);
-                            using FileStream targetStream = File.Create(targetFilePath);
-                            await sourceStream.CopyToAsync(targetStream, cancellationToken);
-                            logger?.LogTrace("Extracted content file {ItemPathInNupkg} to {TargetFilePath}", itemPathInNupkg, targetFilePath);
-                        }
-                    }
-                }
-
-                if (!libAssemblyPaths.Any())
-                {
-                    logger?.LogWarning("No library DLL files found or extracted from package {PackageId}.", packageId);
-                    continue;
-                }
-            }
-            catch (Exception ex)
-            {
-                logger?.LogError(ex, "Failed to extract package {PackageId} or its assemblies.", packageId);
-                continue;
-            }
-            finally
-            {
-                if (File.Exists(nupkgFilePath))
-                {
-                    try { File.Delete(nupkgFilePath); } catch (Exception ex) { logger?.LogWarning(ex, "Failed to delete temporary nupkg file: {NupkgFilePath}", nupkgFilePath); }
-                }
-            }
-
-            string? mainAssemblyFileName = packageId + ".dll";
-            string? mainAssemblyPath = libAssemblyPaths.FirstOrDefault(p => Path.GetFileName(p).Equals(mainAssemblyFileName, StringComparison.OrdinalIgnoreCase));
-
-            if (string.IsNullOrEmpty(mainAssemblyPath))
-            {
-                mainAssemblyPath = libAssemblyPaths.FirstOrDefault(p => !Path.GetFileName(p).StartsWith("System.") && !Path.GetFileName(p).StartsWith("Microsoft."));
-            }
-            if (string.IsNullOrEmpty(mainAssemblyPath))
-            {
-                mainAssemblyPath = libAssemblyPaths.FirstOrDefault();
-            }
-
-            if (string.IsNullOrEmpty(mainAssemblyPath))
-            {
-                logger?.LogError("Could not determine the main assembly for package {PackageId} among extracted files: {LibFiles}", packageId, string.Join(", ", libAssemblyPaths.Select(Path.GetFileName)));
-                continue;
-            }
-
-            logger?.LogInformation("Identified main assembly for {PackageId} as {MainAssemblyPath}", packageId, mainAssemblyPath);
-
-            Assembly assembly;
-            try
-            {
-                var loadContext = new WebModuleLoadContext(mainAssemblyPath);
-                assembly = loadContext.LoadFromAssemblyPath(mainAssemblyPath);
-                logger?.LogInformation("Successfully loaded assembly {AssemblyName} from NuGet package {PackageId} ({MainAssemblyPath})", assembly.FullName ?? "UnknownAssembly", packageId, mainAssemblyPath);
-            }
-            catch (Exception ex)
-            {
-                logger?.LogError(ex, "Failed to load assembly from {MainAssemblyPath} (NuGet package {PackageId}). Skipping module.", mainAssemblyPath, packageId);
-                continue;
-            }
-
-            if (assembly.FullName != null && processedAssemblyFullNames.Contains(assembly.FullName))
-            {
-                logger?.LogInformation("Assembly {AssemblyName} (from NuGet package {PackageId}) was already processed. Skipping.", assembly.FullName, packageId);
-                continue;
-            }
-
-            ProcessAssemblyForWebModules(assembly, builder, partManager, webModuleInstances, logger, env);
-            if (assembly.FullName != null)
-            {
-                processedAssemblyFullNames.Add(assembly.FullName);
-            }
+            sources.Add(new PackageSource("https://api.nuget.org/v3/index.json", "nuget.org"));
         }
 
-        if (existingServiceDescriptor != null)
-        {
-            builder.Services.Remove(existingServiceDescriptor);
-        }
-        builder.Services.AddSingleton<IReadOnlyCollection<IWebModule>>(webModuleInstances.AsReadOnly());
-
-        logger?.LogInformation("Registered {WebModuleCount} web modules in total after NuGet processing.", webModuleInstances.Count);
-        return builder;
+        var provider = new PackageSourceProvider(Settings.LoadDefaultSettings(null), sources);
+        var sourceRepoProvider = new SourceRepositoryProvider(provider, Repository.Provider.GetCoreV3());
+        return [.. sourceRepoProvider.GetRepositories()];
     }
+
+    // Assume you have this. This is critical for loading dependencies correctly.
+    public class WebModuleLoadContext : System.Runtime.Loader.AssemblyLoadContext
+    {
+        private readonly System.Runtime.Loader.AssemblyDependencyResolver resolver;
+
+        public WebModuleLoadContext(string pluginPath) : base(isCollectible: true)
+        {
+            resolver = new System.Runtime.Loader.AssemblyDependencyResolver(pluginPath);
+        }
+
+        protected override Assembly? Load(AssemblyName assemblyName)
+        {
+            string? assemblyPath = resolver.ResolveAssemblyToPath(assemblyName);
+            if (assemblyPath != null)
+            {
+                return LoadFromAssemblyPath(assemblyPath);
+            }
+            return null;
+        }
+
+        protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)
+        {
+            string? libraryPath = resolver.ResolveUnmanagedDllToPath(unmanagedDllName);
+            if (libraryPath != null)
+            {
+                return LoadUnmanagedDllFromPath(libraryPath);
+            }
+            return IntPtr.Zero;
+        }
+    }
+    #endregion
 
     /// <summary>
     /// Invokes each WebModule's Configure method to wire up endpoints and middleware.
@@ -495,5 +538,4 @@ public static class WebModuleExtensions
         }
         return app;
     }
-
 }
