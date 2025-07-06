@@ -26,5 +26,9 @@
 	<ItemGroup>
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
 	</ItemGroup>
+	
+	<ItemGroup>
+	  <None Include="..\README.md" Link="README.md" />
+	</ItemGroup>
 
 </Project>
