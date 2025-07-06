@@ -12,6 +12,8 @@ using NuGet.Packaging.Core;
 using NuGet.Protocol.Core.Types;
 using NuGet.Versioning;
 
+using SharedTestTools.Web;
+
 using System.Reflection;
 
 namespace SharedTools.Web.Modules;
@@ -20,7 +22,7 @@ public static class WebModuleExtensions
 {
     private static NuGet.Common.ILogger NuGetLogger { get; set; } = NuGet.Common.NullLogger.Instance;
 
-    
+
     /// <summary>
     /// Discovers WebModules from NuGet packages, resolves their dependencies, downloads them, 
     /// extracts their contents, loads them, and integrates them into the application.
@@ -39,7 +41,7 @@ public static class WebModuleExtensions
         var partManager = builder.Services.AddRazorPages().PartManager;
         var webModuleInstances = GetOrCreateWebModuleList(builder.Services);
         var logger = CreateTemporaryLogger();
-        //NuGetLogger = logger != null ? new NugetLoggerAdapter(logger) : NuGetLogger;
+        NuGetLogger = logger != null ? new NugetLoggerAdapter(logger) : NuGetLogger;
 
         var processedAssemblies = new HashSet<string>(webModuleInstances.Select(m => m.GetType().Assembly.FullName).Where(n => n != null)!);
 
@@ -47,10 +49,12 @@ public static class WebModuleExtensions
         Directory.CreateDirectory(tempCachePath);
         logger?.LogInformation("Using temporary cache directory: {BaseTempPath}", tempCachePath);
 
-        var repositories = CreateSourceRepositories(nuGetRepositoryUrls);
+        var repositories = CreateSourceRepositories(nuGetRepositoryUrls, logger);
         var nuGetCacheContext = new SourceCacheContext { NoCache = true };
         var nuGetSettings = Settings.LoadDefaultSettings(root: null);
-        var targetFramework = new NuGet.Frameworks.NuGetFramework(".NETCoreApp", new Version(10, 0));
+
+        //todo: this could be parsed so it's not hardcoded framework version
+        var targetFramework = new NuGetFramework(".NETCoreApp", new Version(10, 0));
         logger?.LogInformation("Resolving dependencies for target framework: {Framework}", targetFramework.DotNetFrameworkName);
 
         foreach (var packageId in packageIds)
@@ -238,104 +242,118 @@ public static class WebModuleExtensions
         }
     }
 
-    /// <summary>
-    /// Resolves the full dependency graph for a given package.
-    /// </summary>
     private static async Task<IEnumerable<PackageIdentity>?> ResolveDependencyGraphAsync(
         string packageId,
         string? version,
-        NuGet.Frameworks.NuGetFramework framework,
+        NuGetFramework framework,
         IEnumerable<SourceRepository> repositories,
         SourceCacheContext cacheContext,
         ILogger? logger)
     {
         var resolvedPackages = new Dictionary<string, PackageIdentity>(StringComparer.OrdinalIgnoreCase);
-        var packagesToProcess = new Queue<PackageIdentity>();
+        var packagesToProcess = new Queue<(PackageIdentity package, SourceRepository repository)>();
 
-        // Find the initial package version
-        NuGetVersion? initialVersion = null;
+        // --- New Helper Function with Prioritized Search ---
+        async Task<(NuGetVersion? version, SourceRepository? repo)> FindPackageInPrioritizedReposAsync(string pkgId, VersionRange? range = null)
+        {
+            // Search repositories in the configured order.
+            foreach (var repo in repositories)
+            {
+                try
+                {
+                    var findResource = await repo.GetResourceAsync<FindPackageByIdResource>();
+                    var versions = await findResource.GetAllVersionsAsync(pkgId, cacheContext, NuGetLogger, CancellationToken.None);
+
+                    // If ANY versions are found in this repo, we stop searching further.
+                    // This repository wins.
+                    if (versions != null && versions.Any())
+                    {
+                        logger?.LogInformation("Package '{packageId}' found in prioritized repository: {PackageSourceName}. Using this source exclusively for this package.", pkgId, repo.PackageSource.Name);
+
+                        NuGetVersion? bestVersion;
+                        if (range != null)
+                        {
+                            bestVersion = range.FindBestMatch(versions);
+                        }
+                        else
+                        {
+                            bestVersion = versions.Where(v => !v.IsPrerelease).Max() ?? versions.Max();
+                        }
+
+                        // Return the best version from THIS repo and the repo itself.
+                        return (bestVersion, repo);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger?.LogWarning("Could not get versions for {packageId} from {PackageSourceName}: {message}", pkgId, repo.PackageSource.Name, ex.Message);
+                }
+            }
+
+            // If the package was not found in any repository.
+            return (null, null);
+        }
+
+        // --- Start of Main Logic ---
+        NuGetVersion? initialVersion;
+        SourceRepository? initialRepo;
+
         if (!string.IsNullOrEmpty(version) && NuGetVersion.TryParse(version, out var parsedVersion))
         {
-            initialVersion = parsedVersion;
+            // If a specific version is requested, we still need to find which repo has it.
+            (initialVersion, initialRepo) = await FindPackageInPrioritizedReposAsync(packageId, new VersionRange(parsedVersion, true, parsedVersion, true));
         }
         else
         {
-            foreach (var repo in repositories)
-            {
-                var findResource = await repo.GetResourceAsync<FindPackageByIdResource>();
-                var allVersions = await findResource.GetAllVersionsAsync(packageId, cacheContext, NuGetLogger, CancellationToken.None);
-                // Prefer the latest stable version, otherwise take the latest pre-release.
-                initialVersion = allVersions?.Where(v => !v.IsPrerelease).Max() ?? allVersions?.Max();
-                if (initialVersion != null) break;
-            }
+            (initialVersion, initialRepo) = await FindPackageInPrioritizedReposAsync(packageId);
         }
 
-        if (initialVersion == null)
+        if (initialVersion == null || initialRepo == null)
         {
-            logger?.LogError("Could not determine an initial version for root package {PackageId}", packageId);
+            logger?.LogError("Could not find root package {packageId} in any repository.", packageId);
             return null;
         }
 
         var initialIdentity = new PackageIdentity(packageId, initialVersion);
-        packagesToProcess.Enqueue(initialIdentity);
+        packagesToProcess.Enqueue((initialIdentity, initialRepo));
         resolvedPackages.Add(packageId, initialIdentity);
 
         while (packagesToProcess.Count > 0)
         {
-            var currentPackage = packagesToProcess.Dequeue();
-            logger?.LogTrace("Analyzing dependencies for {PackageId}", currentPackage);
+            var (currentPackage, sourceRepo) = packagesToProcess.Dequeue();
+            logger?.LogTrace("Analyzing dependencies for {currentPackage} from {PackageSourceName}", currentPackage, sourceRepo.PackageSource.Name);
 
-            SourceRepository? sourceRepo = null;
-            SourcePackageDependencyInfo? dependencyInfo = null;
-
-            foreach (var repo in repositories)
-            {
-                var depInfoResource = await repo.GetResourceAsync<DependencyInfoResource>();
-                dependencyInfo = await depInfoResource.ResolvePackage(currentPackage, framework, cacheContext, NuGetLogger, CancellationToken.None);
-                if (dependencyInfo != null)
-                {
-                    sourceRepo = repo;
-                    break;
-                }
-            }
+            // We already know which repo this package came from, so we use it directly.
+            var depInfoResource = await sourceRepo.GetResourceAsync<DependencyInfoResource>();
+            var dependencyInfo = await depInfoResource.ResolvePackage(currentPackage, framework, cacheContext, NuGetLogger, CancellationToken.None);
 
             if (dependencyInfo == null)
             {
-                logger?.LogWarning("Could not find dependency info for package {PackageId}. It might be a package without dependencies.", currentPackage);
-                continue; // This is not necessarily an error. The package might have no dependencies.
+                logger?.LogWarning("Could not find dependency info for package {currentPackage}. It might be a package without dependencies.", currentPackage);
+                continue;
             }
 
             foreach (var dependency in dependencyInfo.Dependencies)
             {
-                // Find the best version for this dependency from its repository
-                var findResource = await sourceRepo!.GetResourceAsync<FindPackageByIdResource>();
-                var versions = await findResource.GetAllVersionsAsync(dependency.Id, cacheContext, NuGetLogger, CancellationToken.None);
+                // For each dependency, run the prioritized search to find which repo it lives in.
+                var (bestVersion, foundInRepo) = await FindPackageInPrioritizedReposAsync(dependency.Id, dependency.VersionRange);
 
-                // *** THE CORRECTED LOGIC IS HERE ***
-                // Use the VersionRange from the dependency to find the best matching version from the list we just fetched.
-                var bestVersion = dependency.VersionRange.FindBestMatch(versions);
-
-                if (bestVersion == null)
+                if (bestVersion == null || foundInRepo == null)
                 {
-                    logger?.LogWarning("Could not find a compatible version for dependency {DependencyId} with range {VersionRange}", dependency.Id, dependency.VersionRange);
+                    logger?.LogWarning("Could not find a compatible version for dependency {Id} with range {VersionRange} in any repository.", dependency.Id, dependency.VersionRange);
                     continue;
                 }
 
-                // If we haven't seen this package ID before, or if the new dependency has a higher version, process it.
-                // This is a simplified "highest version wins" conflict resolution strategy.
                 if (!resolvedPackages.TryGetValue(dependency.Id, out var existing) || bestVersion > existing.Version)
                 {
                     var newIdentity = new PackageIdentity(dependency.Id, bestVersion);
-
-                    // If we are upgrading a package we've already seen, we don't need to re-queue it,
-                    // just update the dictionary. But if it's new, we need to process its dependencies.
                     if (existing == null)
                     {
-                        packagesToProcess.Enqueue(newIdentity);
+                        // Enqueue the dependency along with the repository where it was found.
+                        packagesToProcess.Enqueue((newIdentity, foundInRepo));
                     }
-
                     resolvedPackages[dependency.Id] = newIdentity;
-                    logger?.LogTrace("  -> Resolved dependency: {PackageId} {Version}", newIdentity.Id, newIdentity.Version);
+                    logger?.LogTrace("  -> Resolved dependency: {Id} {Version} from {PackageSourceName}", newIdentity.Id, newIdentity.Version, foundInRepo.PackageSource.Name);
                 }
             }
         }
@@ -392,7 +410,7 @@ public static class WebModuleExtensions
         logger?.LogError("Failed to find or download package {PackageId} from any repository.", packageId);
         return (null, null);
     }
-    
+
     #region Helper Methods
 
     private static List<IWebModule> GetOrCreateWebModuleList(IServiceCollection services)
@@ -418,7 +436,14 @@ public static class WebModuleExtensions
         {
             using var loggerFactory = LoggerFactory.Create(builder =>
             {
-                builder.AddConsole().SetMinimumLevel(LogLevel.Debug);
+                builder.ClearProviders();
+                builder.AddConsole(options =>
+                {
+                    options.FormatterName = "terse";
+                })
+                .AddConsoleFormatter<TerseConsoleFormatter, TerseConsoleFormatterOptions>()
+                .SetMinimumLevel(LogLevel.Debug);
+
                 builder.AddDebug();
             });
             return loggerFactory.CreateLogger(typeof(WebModuleExtensions));
@@ -430,52 +455,44 @@ public static class WebModuleExtensions
         }
     }
 
-    private static List<SourceRepository> CreateSourceRepositories(IEnumerable<string>? repositoryUrls)
+    private static List<SourceRepository> CreateSourceRepositories(IEnumerable<string>? repositoryUrls, ILogger? logger)
     {
         var sources = new List<PackageSource>();
+        ISettings settings;
+
+        // Priority 1: Use explicitly provided URLs if they exist.
         if (repositoryUrls != null && repositoryUrls.Any())
         {
+            logger?.LogInformation("Using explicit repository URLs provided in configuration.");
             sources.AddRange(repositoryUrls.Select(url => new PackageSource(url)));
+            settings = Settings.LoadDefaultSettings(root: null);
         }
         else
         {
-            sources.Add(new PackageSource("https://api.nuget.org/v3/index.json", "nuget.org"));
+            // Priority 2: Discover sources from nuget.config files.
+            logger?.LogInformation("No explicit URLs provided. Attempting to discover sources from nuget.config files...");
+            settings = Settings.LoadDefaultSettings(root: Directory.GetCurrentDirectory());
+            var discoveredSources = new PackageSourceProvider(settings).LoadPackageSources();
+
+            if (discoveredSources.Any())
+            {
+                logger?.LogInformation($"Discovered {discoveredSources.Count()} sources from nuget.config.");
+                sources.AddRange(discoveredSources);
+            }
+            else
+            {
+                // Priority 3: Fallback to default nuget.org if nothing else was found.
+                logger?.LogInformation("No sources found in nuget.config. Falling back to default nuget.org source.");
+                sources.Add(new PackageSource("https://api.nuget.org/v3/index.json", "nuget.org"));
+            }
         }
 
-        var provider = new PackageSourceProvider(Settings.LoadDefaultSettings(null), sources);
-        var sourceRepoProvider = new SourceRepositoryProvider(provider, Repository.Provider.GetCoreV3());
+        // We have our final list of sources, now create the provider.
+        // Note: The 'settings' object is still needed for other configurations like the global packages folder path.
+        var sourceProvider = new PackageSourceProvider(settings, sources);
+        var sourceRepoProvider = new SourceRepositoryProvider(sourceProvider, Repository.Provider.GetCoreV3());
+
         return [.. sourceRepoProvider.GetRepositories()];
-    }
-
-    // Assume you have this. This is critical for loading dependencies correctly.
-    public class WebModuleLoadContext : System.Runtime.Loader.AssemblyLoadContext
-    {
-        private readonly System.Runtime.Loader.AssemblyDependencyResolver resolver;
-
-        public WebModuleLoadContext(string pluginPath) : base(isCollectible: true)
-        {
-            resolver = new System.Runtime.Loader.AssemblyDependencyResolver(pluginPath);
-        }
-
-        protected override Assembly? Load(AssemblyName assemblyName)
-        {
-            string? assemblyPath = resolver.ResolveAssemblyToPath(assemblyName);
-            if (assemblyPath != null)
-            {
-                return LoadFromAssemblyPath(assemblyPath);
-            }
-            return null;
-        }
-
-        protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)
-        {
-            string? libraryPath = resolver.ResolveUnmanagedDllToPath(unmanagedDllName);
-            if (libraryPath != null)
-            {
-                return LoadUnmanagedDllFromPath(libraryPath);
-            }
-            return IntPtr.Zero;
-        }
     }
     #endregion
 
@@ -484,7 +501,7 @@ public static class WebModuleExtensions
     /// </summary>
     public static WebApplication UseWebModules(this WebApplication app)
     {
-        var loggerFactory = app.Services.GetService<Microsoft.Extensions.Logging.ILoggerFactory>();
+        var loggerFactory = app.Services.GetService<ILoggerFactory>();
         var logger = loggerFactory?.CreateLogger(typeof(WebModuleExtensions).FullName ?? "WebModuleExtensions");
 
         var WebModules = app.Services.GetRequiredService<IReadOnlyCollection<IWebModule>>();
