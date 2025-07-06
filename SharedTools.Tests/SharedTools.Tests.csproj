@@ -12,15 +12,8 @@
     <Authors>Andrew Boudreau</Authors>
     <Description>Shared testing tools and utilities</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryUrl>https://github.com/andrewboudreau/SharedTools</RepositoryUrl>
     <PackageTags>testing;utilities</PackageTags>
   </PropertyGroup>
-
-  <ItemGroup>
-    <None Update="README.md">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
 
 </Project>

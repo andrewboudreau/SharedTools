@@ -12,7 +12,6 @@
 		<Authors>Andrew Boudreau</Authors>
 		<Description>Shared web tools and utilities</Description>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
-		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<RepositoryUrl>https://github.com/andrewboudreau/SharedTools</RepositoryUrl>
 		<PackageTags>web;utilities</PackageTags>
 	</PropertyGroup>
@@ -25,12 +24,6 @@
 	
 	<ItemGroup>
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
-	</ItemGroup>
-	
-	<ItemGroup>
-	  <None Update="README.md">
-	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-	  </None>
 	</ItemGroup>
 
 </Project>
