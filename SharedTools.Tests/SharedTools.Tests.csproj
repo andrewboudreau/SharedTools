@@ -17,10 +17,4 @@
     <PackageTags>testing;utilities</PackageTags>
   </PropertyGroup>
 
-  <ItemGroup>
-    <None Update="README.md">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
-
 </Project>

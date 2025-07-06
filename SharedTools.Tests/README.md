@@ -59,7 +59,7 @@ Below is a template for your module's `.csproj` file. Pay close attention to the
       This solves the "type identity" problem, ensuring your module and the host
       are using the exact same IWebModule type from memory.
     -->
-    <PackageReference Include="SharedTools.Web.Abstractions" Version="1.0.0">
+    <PackageReference Include="SharedTools.Web" Version="1.0.0">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
   </ItemGroup>
