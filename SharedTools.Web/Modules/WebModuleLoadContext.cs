@@ -1,26 +1,47 @@
 ﻿using System.Reflection;
-using System.Runtime.Loader;
 
 namespace SharedTools.Web.Modules;
 
-public class WebModuleLoadContext : AssemblyLoadContext
+public class WebModuleLoadContext : System.Runtime.Loader.AssemblyLoadContext
 {
-    private readonly AssemblyDependencyResolver resolver;
+    private readonly System.Runtime.Loader.AssemblyDependencyResolver resolver;
+    private readonly Assembly sharedContractsAssembly;
 
-    public WebModuleLoadContext(string webModulePath)
+    public WebModuleLoadContext(string pluginPath) : base(isCollectible: true)
     {
-        // webModulePath is the file path to the main WebModule assembly
-        resolver = new AssemblyDependencyResolver(webModulePath);
+        resolver = new System.Runtime.Loader.AssemblyDependencyResolver(pluginPath);
+
+        // Store a reference to the host's IWebModule assembly.
+        // This is the "one true" assembly that we will share.
+        sharedContractsAssembly = typeof(IWebModule).Assembly;
     }
 
     protected override Assembly? Load(AssemblyName assemblyName)
     {
+        // Is the assembly being requested the shared contracts assembly?
+        // We check by name. A more robust check might include the public key token.
+        if (assemblyName.Name == sharedContractsAssembly.GetName().Name)
+        {
+            // If it is, DO NOT resolve it from the plugin's folder.
+            // Return null to fall back to the host's AssemblyLoadContext.
+            // The host will provide its already-loaded instance of the assembly.
+            return null;
+        }
+
+        // For all other assemblies, resolve them from the plugin's flat directory.
+        // This keeps the plugin's dependencies (like Azure.Core) isolated.
         string? assemblyPath = resolver.ResolveAssemblyToPath(assemblyName);
         if (assemblyPath != null)
         {
-            // Load dependency from WebModule's folder
             return LoadFromAssemblyPath(assemblyPath);
         }
-        return null; // fallback to default context if not found
+
+        return null;
+    }
+
+    protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)
+    {
+        string? libraryPath = resolver.ResolveUnmanagedDllToPath(unmanagedDllName);
+        return libraryPath != null ? LoadUnmanagedDllFromPath(libraryPath) : IntPtr.Zero;
     }
 }

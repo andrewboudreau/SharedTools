@@ -39,7 +39,7 @@ public static class WebModuleExtensions
         var partManager = builder.Services.AddRazorPages().PartManager;
         var webModuleInstances = GetOrCreateWebModuleList(builder.Services);
         var logger = CreateTemporaryLogger();
-        NuGetLogger = logger != null ? new NugetLoggerAdapter(logger) : NuGet.Common.NullLogger.Instance;
+        //NuGetLogger = logger != null ? new NugetLoggerAdapter(logger) : NuGetLogger;
 
         var processedAssemblies = new HashSet<string>(webModuleInstances.Select(m => m.GetType().Assembly.FullName).Where(n => n != null)!);
 
@@ -48,7 +48,7 @@ public static class WebModuleExtensions
         logger?.LogInformation("Using temporary cache directory: {BaseTempPath}", tempCachePath);
 
         var repositories = CreateSourceRepositories(nuGetRepositoryUrls);
-        var nuGetCacheContext = new SourceCacheContext { NoCache = false };
+        var nuGetCacheContext = new SourceCacheContext { NoCache = true };
         var nuGetSettings = Settings.LoadDefaultSettings(root: null);
         var targetFramework = new NuGet.Frameworks.NuGetFramework(".NETCoreApp", new Version(10, 0));
         logger?.LogInformation("Resolving dependencies for target framework: {Framework}", targetFramework.DotNetFrameworkName);
@@ -158,11 +158,6 @@ public static class WebModuleExtensions
         ILogger? logger,
         IWebHostEnvironment env)
     {
-        if (logger is not null)
-        {
-            NuGetLogger = new NugetLoggerAdapter(logger);
-        }
-
         logger?.LogInformation("Processing assembly {AssemblyName} for web modules.", assembly.FullName ?? "UnknownAssembly");
 
         // Add the assembly for controllers/pages discovery
@@ -384,12 +379,12 @@ public static class WebModuleExtensions
             var globalPackagesFolder = SettingsUtility.GetGlobalPackagesFolder(nugetSettings);
             var downloadContext = new PackageDownloadContext(cacheContext, Path.GetTempPath(), cacheContext.DirectDownload);
 
-            logger?.LogInformation("Downloading {PackageId} version {PackageVersion} from {Repository}", packageId, versionToDownload, repo.PackageSource.Name);
+            logger?.LogTrace("Downloading {PackageId} version {PackageVersion} from {Repository}", packageId, versionToDownload, repo.PackageSource.Name);
             downloadResult = await downloadResource.GetDownloadResourceResultAsync(packageIdentity, downloadContext, globalPackagesFolder, NuGetLogger, CancellationToken.None);
 
             if (downloadResult?.Status == DownloadResourceResultStatus.Available)
             {
-                logger?.LogInformation("Successfully downloaded package {PackageId}.", packageId);
+                logger?.LogTrace("Successfully downloaded package {PackageId}.", packageId);
                 return (downloadResult, packageIdentity); // Success!
             }
         }
@@ -423,7 +418,7 @@ public static class WebModuleExtensions
         {
             using var loggerFactory = LoggerFactory.Create(builder =>
             {
-                builder.AddConsole().SetMinimumLevel(LogLevel.Trace);
+                builder.AddConsole().SetMinimumLevel(LogLevel.Debug);
                 builder.AddDebug();
             });
             return loggerFactory.CreateLogger(typeof(WebModuleExtensions));
