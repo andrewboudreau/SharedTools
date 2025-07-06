@@ -45,10 +45,10 @@ jobs:
         grep -o "<Version>.*</Version>" SharedTools.Tests/SharedTools.Tests.csproj
     
     - name: Restore dependencies
-      run: dotnet restore
+      run: dotnet restore --configfile nuget.ci.config
     
     - name: Build
-      run: dotnet build --no-restore --configuration Release
+      run: dotnet build --no-restore --configuration Release --no-restore --configfile nuget.ci.config
     
     - name: Test
       run: dotnet test --no-build --configuration Release
