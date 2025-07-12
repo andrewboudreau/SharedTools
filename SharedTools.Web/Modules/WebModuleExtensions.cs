@@ -41,7 +41,7 @@ public static class WebModuleExtensions
         var partManager = builder.Services.AddRazorPages().PartManager;
         var webModuleInstances = GetOrCreateWebModuleList(builder.Services);
         var logger = CreateTemporaryLogger();
-        NuGetLogger = logger != null ? new NugetLoggerAdapter(logger) : NuGetLogger;
+        //NuGetLogger = logger != null ? new NugetLoggerAdapter(logger) : NuGetLogger;
 
         var processedAssemblies = new HashSet<string>(webModuleInstances.Select(m => m.GetType().Assembly.FullName).Where(n => n != null)!);
 

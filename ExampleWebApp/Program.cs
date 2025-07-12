@@ -7,8 +7,9 @@ builder.Services
     .AddRazorPages();
 
 // this extension loads the ProjectGeoShot.Game module and configures the services it provides.
-await builder.AddWebModules(["ProjectGeoShot.Game"]);
+
 // See https://www.nuget.org/packages/ProjectGeoShot.Game
+await builder.AddWebModules(["ProjectGeoShot.Game"]);
 
 var app = builder.Build();
 if (!app.Environment.IsDevelopment())

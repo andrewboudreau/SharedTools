@@ -1,0 +1,38 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+		<StaticWebAssetBasePath>_content/ExampleWebModule</StaticWebAssetBasePath>
+		<PackageOutputPath Condition="'$(Configuration)' == 'Debug'">C:\LocalNuGet</PackageOutputPath>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<!-- NuGet Package Properties -->
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<PackageId>ExampleWebModule</PackageId>
+		<Version>$(VersionPrefix)</Version>
+		<Authors>Andrew Boudreau</Authors>
+		<Description>An example module for WebModules.</Description>
+		<PackageTags>example webmodule</PackageTags>
+		<RepositoryUrl>https://github.com/andrewboudreau/SharedTools</RepositoryUrl>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- This tells the project that the entire ASP.NET Core runtime is provided by the host. -->
+		<!-- It gives you access to WebApplicationBuilder, IServiceCollection, Components, etc. -->
+		<!-- but ensures they are NOT packaged as dependencies. -->
+		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+		<SupportedPlatform Include="browser" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Azure.Storage.Blobs" Version="12.26.0-beta.1" />
+		<PackageReference Include="SharedTools.Web" Version="0.0.25">
+			<PrivateAssets>all</PrivateAssets>
+		</PackageReference>
+	</ItemGroup>
+
+</Project>
