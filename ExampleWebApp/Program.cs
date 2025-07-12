@@ -6,10 +6,8 @@ builder.Services
     .AddMemoryCache()
     .AddRazorPages();
 
-// this extension loads the ProjectGeoShot.Game module and configures the services it provides.
-
-// See https://www.nuget.org/packages/ProjectGeoShot.Game
-await builder.AddWebModules(["ProjectGeoShot.Game"]);
+// See https://github.com/andrewboudreau/SharedTools/tree/master/ExampleWebModule
+await builder.AddWebModules(["ExampleWebModule"]);
 
 var app = builder.Build();
 if (!app.Environment.IsDevelopment())
