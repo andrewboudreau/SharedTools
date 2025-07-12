@@ -28,6 +28,16 @@ public class WebModuleLoadContext : System.Runtime.Loader.AssemblyLoadContext
             return null;
         }
 
+        // CRITICAL: Also delegate all ASP.NET Core and Microsoft.Extensions assemblies to the host
+        // This prevents MissingMethodException when modules try to use framework APIs
+        if (assemblyName.Name != null && 
+            (assemblyName.Name.StartsWith("Microsoft.AspNetCore.", StringComparison.OrdinalIgnoreCase) ||
+             assemblyName.Name.StartsWith("Microsoft.Extensions.", StringComparison.OrdinalIgnoreCase)))
+        {
+            // Let the host provide these framework assemblies
+            return null;
+        }
+
         // For all other assemblies, resolve them from the plugin's flat directory.
         // This keeps the plugin's dependencies (like Azure.Core) isolated.
         string? assemblyPath = resolver.ResolveAssemblyToPath(assemblyName);
