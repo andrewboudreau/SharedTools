@@ -21,7 +21,7 @@ public class TerseConsoleFormatter : ConsoleFormatter
         }
 
         textWriter.WriteLine($"{logEntry.LogLevel.ToString().ToLower()[..4]}: {shortName} - {message}");
-    } 
+    }
 }
 
 public class TerseConsoleFormatterOptions : ConsoleFormatterOptions { }

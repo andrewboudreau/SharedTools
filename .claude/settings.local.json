@@ -6,7 +6,10 @@
       "Bash(git pull:*)",
       "Bash(dotnet pack:*)",
       "Bash(mkdir:*)",
-      "Bash(dotnet build:*)"
+      "Bash(dotnet build:*)",
+      "Bash(del \"C:\\Users\\andre\\source\\repos\\SharedTools\\ExampleWebApp\\Program.ApplicationParts.cs\")",
+      "Bash(dotnet format:*)",
+      "Bash(dotnet test)"
     ],
     "deny": []
   }
