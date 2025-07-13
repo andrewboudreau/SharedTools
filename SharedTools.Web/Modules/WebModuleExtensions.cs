@@ -12,7 +12,7 @@ using NuGet.Packaging.Core;
 using NuGet.Protocol.Core.Types;
 using NuGet.Versioning;
 
-using SharedTestTools.Web;
+using SharedTools.Web.Modules.Logging;
 
 using System.Reflection;
 
@@ -24,7 +24,7 @@ public static class WebModuleExtensions
 
     internal class ModuleStaticFileRegistry
     {
-        public List<(string ModuleName, IFileProvider FileProvider)> Modules { get; } = new();
+        public List<(string ModuleName, IFileProvider FileProvider)> Modules { get; } = [];
     }
 
 

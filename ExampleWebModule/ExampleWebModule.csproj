@@ -30,7 +30,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="Azure.Storage.Blobs" Version="12.26.0-beta.1" />
-		<PackageReference Include="SharedTools.Web" Version="0.0.25">
+		<PackageReference Include="SharedTools.Web" Version="0.0.27">
 			<PrivateAssets>all</PrivateAssets>
 		</PackageReference>
 	</ItemGroup>

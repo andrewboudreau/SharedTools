@@ -1,6 +1,6 @@
 ﻿using NuGet.Common;
 
-namespace SharedTools.Web.Modules;
+namespace SharedTools.Web.Modules.Logging;
 
 /// <summary>
 /// An adapter to pass log messages from the NuGet client libraries

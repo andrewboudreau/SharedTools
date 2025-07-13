@@ -2,7 +2,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging.Console;
 
-namespace SharedTestTools.Web;
+namespace SharedTools.Web.Modules.Logging;
 
 public class TerseConsoleFormatter : ConsoleFormatter
 {
