@@ -22,6 +22,11 @@ public static class WebModuleExtensions
 {
     private static NuGet.Common.ILogger NuGetLogger { get; set; } = NuGet.Common.NullLogger.Instance;
 
+    internal class ModuleStaticFileRegistry
+    {
+        public List<(string ModuleName, IFileProvider FileProvider)> Modules { get; } = new();
+    }
+
 
     /// <summary>
     /// Discovers WebModules from NuGet packages, resolves their dependencies, downloads them, 
@@ -42,6 +47,9 @@ public static class WebModuleExtensions
         var webModuleInstances = GetOrCreateWebModuleList(builder.Services);
         var logger = CreateTemporaryLogger();
         //NuGetLogger = logger != null ? new NugetLoggerAdapter(logger) : NuGetLogger;
+
+        // Get or create the static file registry
+        var staticFileRegistry = GetOrCreateStaticFileRegistry(builder.Services);
 
         var processedAssemblies = new HashSet<string>(webModuleInstances.Select(m => m.GetType().Assembly.FullName).Where(n => n != null)!);
 
@@ -87,7 +95,7 @@ public static class WebModuleExtensions
                         continue;
                     }
 
-                    // Extract DLLs from this package into the single flat directory
+                    // Extract DLLs and static web assets from this package
                     using (var reader = new PackageArchiveReader(downloadResult.PackageStream))
                     {
                         var libItems = await reader.GetLibItemsAsync(CancellationToken.None);
@@ -104,6 +112,52 @@ public static class WebModuleExtensions
                                 {
                                     // Extract the file directly into our flat path.
                                     reader.ExtractFile(item, Path.Combine(flatExtractionPath, Path.GetFileName(item)), NuGetLogger);
+                                }
+                            }
+                        }
+
+                        // Extract static web assets from staticwebassets/ or contentFiles/
+                        var allFiles = reader.GetFiles();
+                        foreach (var file in allFiles)
+                        {
+                            if (file.StartsWith("staticwebassets/", StringComparison.OrdinalIgnoreCase) ||
+                                file.StartsWith("contentFiles/", StringComparison.OrdinalIgnoreCase))
+                            {
+                                var relativePath = file;
+                                if (file.StartsWith("staticwebassets/", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    relativePath = file.Substring("staticwebassets/".Length);
+                                }
+                                else if (file.StartsWith("contentFiles/", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    relativePath = file["contentFiles/".Length..];
+                                    // Skip framework-specific folders in contentFiles
+                                    if (relativePath.Contains('/') && 
+                                        (relativePath.StartsWith("any/") || relativePath.StartsWith("cs/")))
+                                    {
+                                        var parts = relativePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                                        if (parts.Length > 1)
+                                        {
+                                            relativePath = string.Join("/", parts.Skip(1));
+                                        }
+                                    }
+                                }
+
+                                var extractPath = Path.Combine(flatExtractionPath, "wwwroot", relativePath);
+                                var extractDir = Path.GetDirectoryName(extractPath);
+                                if (!string.IsNullOrEmpty(extractDir))
+                                {
+                                    Directory.CreateDirectory(extractDir);
+                                }
+                                
+                                try
+                                {
+                                    reader.ExtractFile(file, extractPath, NuGetLogger);
+                                    logger?.LogTrace("Extracted static asset: {File} -> {ExtractPath}", file, extractPath);
+                                }
+                                catch (Exception ex)
+                                {
+                                    logger?.LogWarning("Failed to extract static asset {File}: {Error}", file, ex.Message);
                                 }
                             }
                         }
@@ -140,7 +194,7 @@ public static class WebModuleExtensions
                     continue;
                 }
 
-                ProcessAssemblyForWebModules(assembly, builder, partManager, webModuleInstances, logger, env);
+                ProcessAssemblyForWebModules(assembly, rootPackageIdentity.Id, builder, partManager, webModuleInstances, logger, env);
                 processedAssemblies.Add(assembly.FullName!);
             }
             catch (Exception ex)
@@ -156,6 +210,7 @@ public static class WebModuleExtensions
 
     private static void ProcessAssemblyForWebModules(
         Assembly assembly,
+        string moduleName,
         WebApplicationBuilder builder,
         ApplicationPartManager partManager,
         List<IWebModule> webModuleInstances,
@@ -186,16 +241,51 @@ public static class WebModuleExtensions
             logger?.LogTrace("CompiledRazorAssemblyPart for {AssemblyName} already exists.", assembly.FullName ?? "UnknownAssembly");
         }
 
+        // Get the static file registry from the service collection
+        var staticFileRegistry = GetOrCreateStaticFileRegistry(builder.Services);
+
+        // Check for embedded wwwroot resources (for assemblies that embed resources)
         var manifestResourceNames = assembly.GetManifestResourceNames();
+        logger?.LogInformation("Assembly {AssemblyName} has {ResourceCount} manifest resources: {Resources}", 
+            assembly.FullName, manifestResourceNames.Length, string.Join(", ", manifestResourceNames));
+        
         if (manifestResourceNames.Any(r => r.StartsWith("wwwroot", StringComparison.OrdinalIgnoreCase)))
         {
             var embeddedProvider = new ManifestEmbeddedFileProvider(assembly, "wwwroot");
-            env.WebRootFileProvider = new CompositeFileProvider(env.WebRootFileProvider, embeddedProvider);
-            logger?.LogTrace("Configured ManifestEmbeddedFileProvider for 'wwwroot' from assembly {AssemblyName}", assembly.FullName ?? "UnknownAssembly");
+            staticFileRegistry?.Modules.Add((moduleName, embeddedProvider));
+            logger?.LogInformation("Registered ManifestEmbeddedFileProvider for module {ModuleName} from assembly {AssemblyName}", moduleName, assembly.FullName ?? "UnknownAssembly");
         }
-        else
+
+        // Check for extracted static web assets (for NuGet packages)
+        var assemblyLocation = assembly.Location;
+        if (!string.IsNullOrEmpty(assemblyLocation))
         {
-            logger?.LogTrace("No 'wwwroot' embedded resources found in assembly {AssemblyName}", assembly.FullName ?? "UnknownAssembly");
+            var assemblyDir = Path.GetDirectoryName(assemblyLocation);
+            if (!string.IsNullOrEmpty(assemblyDir))
+            {
+                var staticAssetsPath = Path.Combine(assemblyDir, "wwwroot");
+                if (Directory.Exists(staticAssetsPath))
+                {
+                    var physicalProvider = new PhysicalFileProvider(staticAssetsPath);
+                    staticFileRegistry?.Modules.Add((moduleName, physicalProvider));
+                    logger?.LogInformation("Registered PhysicalFileProvider for module {ModuleName} from {StaticAssetsPath}", moduleName, staticAssetsPath);
+                    
+                    // Log the files found
+                    var files = Directory.GetFiles(staticAssetsPath, "*", SearchOption.AllDirectories);
+                    logger?.LogInformation("Found {FileCount} static files for module {ModuleName}: {Files}", 
+                        files.Length, moduleName, string.Join(", ", files.Select(f => Path.GetRelativePath(staticAssetsPath, f))));
+                }
+                else
+                {
+                    logger?.LogTrace("No extracted static assets found at {StaticAssetsPath}", staticAssetsPath);
+                }
+            }
+        }
+
+        if (!manifestResourceNames.Any(r => r.StartsWith("wwwroot", StringComparison.OrdinalIgnoreCase)) && 
+            (string.IsNullOrEmpty(assembly.Location) || !Directory.Exists(Path.Combine(Path.GetDirectoryName(assembly.Location) ?? "", "wwwroot"))))
+        {
+            logger?.LogTrace("No static assets found in assembly {AssemblyName}", assembly.FullName ?? "UnknownAssembly");
         }
 
         var allTypesInAssembly = assembly.GetTypes();
@@ -430,6 +520,20 @@ public static class WebModuleExtensions
         return [];
     }
 
+    private static ModuleStaticFileRegistry GetOrCreateStaticFileRegistry(IServiceCollection services)
+    {
+        var descriptor = services.FirstOrDefault(s => s.ServiceType == typeof(ModuleStaticFileRegistry));
+        if (descriptor?.ImplementationInstance is ModuleStaticFileRegistry registry)
+        {
+            return registry;
+        }
+        
+        // Create and register a new instance
+        var newRegistry = new ModuleStaticFileRegistry();
+        services.AddSingleton(newRegistry);
+        return newRegistry;
+    }
+
     private static ILogger? CreateTemporaryLogger()
     {
         try
@@ -503,6 +607,27 @@ public static class WebModuleExtensions
     {
         var loggerFactory = app.Services.GetService<ILoggerFactory>();
         var logger = loggerFactory?.CreateLogger(typeof(WebModuleExtensions).FullName ?? "WebModuleExtensions");
+
+        // Configure static files for each module
+        var staticFileRegistry = app.Services.GetService<ModuleStaticFileRegistry>();
+        if (staticFileRegistry != null)
+        {
+            logger?.LogInformation("Found ModuleStaticFileRegistry with {ModuleCount} modules", staticFileRegistry.Modules.Count);
+            foreach (var (moduleName, fileProvider) in staticFileRegistry.Modules)
+            {
+                var requestPath = $"/_content/{moduleName}";
+                app.UseStaticFiles(new StaticFileOptions
+                {
+                    FileProvider = fileProvider,
+                    RequestPath = requestPath
+                });
+                logger?.LogInformation("Configured static files for module {ModuleName} at path {RequestPath}", moduleName, requestPath);
+            }
+        }
+        else
+        {
+            logger?.LogWarning("ModuleStaticFileRegistry not found in services");
+        }
 
         var WebModules = app.Services.GetRequiredService<IReadOnlyCollection<IWebModule>>();
         logger?.LogInformation("Configuring {WebModuleCount} web modules in UseWebModules.", WebModules.Count);
