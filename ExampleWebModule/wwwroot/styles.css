@@ -1,0 +1,11 @@
+﻿html {
+    background: url('background.png') no-repeat center center fixed;
+    background-size: cover;
+}
+
+.razor-container {
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    margin: 10px 0;
+}
