@@ -46,14 +46,8 @@ public static class ApplicationPartModuleExtensions
         var moduleRegistry = GetOrCreateModuleRegistry(builder.Services);
 
         // Get the ApplicationPartManager
-        var mvcBuilder = builder.Services.AddControllersWithViews();
+        var mvcBuilder = builder.Services.AddRazorPages();
         var partManager = mvcBuilder.PartManager;
-
-        // Add our custom feature provider
-        if (!partManager.FeatureProviders.Any(fp => fp is ModuleControllerFeatureProvider))
-        {
-            partManager.FeatureProviders.Add(new ModuleControllerFeatureProvider());
-        }
 
         var logger = CreateTemporaryLogger();
         var processedAssemblies = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -215,14 +209,14 @@ public static class ApplicationPartModuleExtensions
         // Also add regular ApplicationParts for assemblies without modules (for compatibility)
         if (!moduleTypes.Any())
         {
-            // Add AssemblyPart for controller discovery
+            // Add AssemblyPart for Razor Pages discovery
             if (!partManager.ApplicationParts.Any(part => part is AssemblyPart ap && ap.Assembly == assembly))
             {
                 partManager.ApplicationParts.Add(new AssemblyPart(assembly));
                 logger?.LogTrace("Added AssemblyPart for {AssemblyName}", assembly.FullName ?? "UnknownAssembly");
             }
 
-            // Add CompiledRazorAssemblyPart for views
+            // Add CompiledRazorAssemblyPart for compiled Razor views/pages
             if (!partManager.ApplicationParts.Any(part => part is CompiledRazorAssemblyPart crap &&
                 crap.Assembly == assembly))
             {

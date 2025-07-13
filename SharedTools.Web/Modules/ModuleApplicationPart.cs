@@ -5,7 +5,7 @@ namespace SharedTools.Web.Modules;
 
 /// <summary>
 /// Represents a module as an ApplicationPart, providing both assembly information
-/// and module-specific functionality.
+/// and module-specific functionality for Razor Pages and views.
 /// </summary>
 public class ModuleApplicationPart : ApplicationPart, IApplicationPartTypeProvider
 {

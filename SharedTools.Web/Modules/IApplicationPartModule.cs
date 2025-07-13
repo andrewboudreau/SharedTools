@@ -6,7 +6,7 @@ namespace SharedTools.Web.Modules;
 
 /// <summary>
 /// Modern interface for web modules that integrate with ASP.NET Core's ApplicationParts system.
-/// Modules implementing this interface can contribute controllers, views, and other MVC components.
+/// Modules implementing this interface can contribute Razor Pages, views, and other components.
 /// </summary>
 public interface IApplicationPartModule
 {
@@ -23,8 +23,8 @@ public interface IApplicationPartModule
     void ConfigureServices(IServiceCollection services);
 
     /// <summary>
-    /// Configures the module's application parts, allowing it to contribute controllers,
-    /// views, and other MVC components to the application.
+    /// Configures the module's application parts, allowing it to contribute Razor Pages,
+    /// views, and other components to the application.
     /// </summary>
     /// <param name="applicationPartManager">The application part manager to configure.</param>
     void ConfigureApplicationParts(ApplicationPartManager applicationPartManager);

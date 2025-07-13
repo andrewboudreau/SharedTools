@@ -3,10 +3,8 @@ using SharedTools.Web.Modules;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services
-    .AddMemoryCache();
-
-builder.Services.AddControllersWithViews();
-builder.Services.AddRazorPages();
+    .AddMemoryCache()
+    .AddRazorPages();
 
 // Use the new ApplicationPart-based module system
 // This will download packages, resolve dependencies, and register them as ApplicationParts
@@ -22,8 +20,7 @@ if (!app.Environment.IsDevelopment())
 app.UseStaticFiles();
 app.UseRouting();
 
-// Map endpoints - controllers from modules will be automatically discovered
-app.MapControllers();
+// Map Razor Pages endpoints
 app.MapRazorPages();
 
 // Configure modules - this calls each module's Configure method

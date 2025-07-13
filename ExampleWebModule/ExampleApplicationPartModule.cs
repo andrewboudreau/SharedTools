@@ -31,8 +31,8 @@ public class ExampleApplicationPartModule : IApplicationPartModule
             return new AzureBlobExampleStorage(blobServiceClient, options.ExamplesContainerName);
         });
 
-        // Register any controllers or view components from this module
-        services.AddControllersWithViews();
+        // Module services are already registered
+        // Razor Pages support is added by the host application
     }
 
     public void ConfigureApplicationParts(ApplicationPartManager applicationPartManager)
@@ -60,7 +60,7 @@ public class ExampleApplicationPartModule : IApplicationPartModule
             Status = "Active"
         });
 
-        // Note: Controllers from this module will be automatically discovered
-        // through the ApplicationPart system, so we don't need to map them here
+        // Note: Razor Pages from this module will be automatically discovered
+        // through the ApplicationPart system
     }
 }
