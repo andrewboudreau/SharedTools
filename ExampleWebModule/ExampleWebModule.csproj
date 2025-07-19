@@ -3,9 +3,12 @@
 		<TargetFramework>net10.0</TargetFramework>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
-		<AddRazorSupportForMvc>true</AddRazorSupportForMvc>
 		<StaticWebAssetBasePath>_content/ExampleWebModule</StaticWebAssetBasePath>
 		<PackageOutputPath Condition="'$(Configuration)' == 'Debug'">C:\LocalNuGet</PackageOutputPath>
+		<!-- Ensure Razor views are compiled into the main assembly -->
+		<RazorCompileOnBuild>true</RazorCompileOnBuild>
+		<RazorCompileOnPublish>true</RazorCompileOnPublish>
+		<AddRazorSupportForMvc>true</AddRazorSupportForMvc>
 	</PropertyGroup>
 
 	<PropertyGroup>

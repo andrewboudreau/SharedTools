@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace ExampleWebModule.Areas.ExampleWebModule.Pages;
 
-[Area("ExampleWebModule")]
 public class IndexModel : PageModel
 {
     private readonly IExampleBlobStorage storage;

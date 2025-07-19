@@ -60,7 +60,7 @@ public class ExampleApplicationPartModule : IApplicationPartModule
             Status = "Active"
         });
 
-        // Note: Razor Pages from this module will be automatically discovered
-        // through the ApplicationPart system
+        // Module's Razor Pages are automatically mapped by the host application
+        // They will be accessible under /ExampleWebModule due to the Area structure
     }
 }

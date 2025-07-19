@@ -20,10 +20,11 @@ if (!app.Environment.IsDevelopment())
 app.UseStaticFiles();
 app.UseRouting();
 
-// Map Razor Pages endpoints
+// Map Razor Pages endpoints (including Areas)
 app.MapRazorPages();
 
 // Configure modules - this calls each module's Configure method
 app.UseApplicationPartModules();
+
 
 app.Run();
