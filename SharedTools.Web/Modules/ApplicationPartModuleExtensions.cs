@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
+using Microsoft.AspNetCore.Mvc.Razor.Compilation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging;
@@ -108,10 +109,11 @@ public static class ApplicationPartModuleExtensions
                 }
 
                 Assembly assembly;
+                ModuleAssemblyLoadContext loadContext;
                 try
                 {
                     logger?.LogInformation("Loading main assembly from: {AssemblyPath}", mainAssemblyPath);
-                    var loadContext = new ModuleAssemblyLoadContext(mainAssemblyPath);
+                    loadContext = new ModuleAssemblyLoadContext(mainAssemblyPath);
                     assembly = loadContext.LoadFromAssemblyPath(mainAssemblyPath);
                 }
                 catch (Exception ex)
@@ -129,7 +131,7 @@ public static class ApplicationPartModuleExtensions
 
                 ProcessAssemblyForModules(
                     assembly, rootPackageIdentity.Id, flatExtractionPath,
-                    builder, partManager, moduleRegistry, logger, env);
+                    builder, partManager, moduleRegistry, logger, env, loadContext);
 
                 processedAssemblies.Add(assembly.FullName!);
             }
@@ -158,14 +160,28 @@ public static class ApplicationPartModuleExtensions
         ApplicationPartManager partManager,
         ModuleRegistry moduleRegistry,
         ILogger? logger,
-        IWebHostEnvironment env)
+        IWebHostEnvironment env,
+        ModuleAssemblyLoadContext loadContext)
     {
         logger?.LogInformation("Processing assembly {AssemblyName} for application part modules.",
             assembly.FullName ?? "UnknownAssembly");
 
         // Find all types implementing IApplicationPartModule
-        var moduleTypes = assembly.GetTypes()
-            .Where(t => typeof(IApplicationPartModule).IsAssignableFrom(t) &&
+        Type[] types;
+        try
+        {
+            types = assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            // Some types couldn't be loaded, but we can still work with the ones that did load
+            types = ex.Types.Where(t => t != null).ToArray()!;
+            logger?.LogWarning("Some types could not be loaded from {AssemblyName}. Continuing with {LoadedTypeCount} types.",
+                assembly.FullName ?? "UnknownAssembly", types.Length);
+        }
+
+        var moduleTypes = types
+            .Where(t => t != null && typeof(IApplicationPartModule).IsAssignableFrom(t) &&
                        !t.IsInterface && !t.IsAbstract);
 
         logger?.LogInformation("Found {ModuleTypeCount} IApplicationPartModule implementations in {AssemblyName}",
@@ -184,6 +200,19 @@ public static class ApplicationPartModuleExtensions
                 // Create and add ModuleApplicationPart
                 var modulePart = new ModuleApplicationPart(assembly, module);
                 partManager.ApplicationParts.Add(modulePart);
+
+                // Also add as AssemblyPart for Razor Pages discovery
+                var assemblyPart = new AssemblyPart(assembly);
+                if (!partManager.ApplicationParts.Any(p => p is AssemblyPart ap && ap.Assembly == assembly))
+                {
+                    partManager.ApplicationParts.Add(assemblyPart);
+                }
+
+                // Add CompiledRazorAssemblyPart for the main assembly (views are compiled into main assembly in .NET 6+)
+                var compiledRazorPart = new CompiledRazorAssemblyPart(assembly);
+                partManager.ApplicationParts.Add(compiledRazorPart);
+                logger?.LogInformation("Added CompiledRazorAssemblyPart for main assembly {AssemblyName} of module {ModuleName}", 
+                    assembly.GetName().Name, module.Name);               
 
                 // Let the module configure additional application parts if needed
                 module.ConfigureApplicationParts(partManager);

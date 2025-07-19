@@ -1,0 +1,18 @@
+@page
+@{
+    ViewData["Title"] = "Module Test";
+}
+
+<h1>Module Test Page</h1>
+
+<h2>Available Module Pages:</h2>
+<ul>
+    <li><a href="/Index">Module Index Page (if accessible at root)</a></li>
+    <li><a href="/ExampleWebModule">Module at /ExampleWebModule</a></li>
+    <li><a href="/ExampleWebModule/Index">Module at /ExampleWebModule/Index</a></li>
+    <li><a href="/example-module/info">Module Info Endpoint</a></li>
+</ul>
+
+<h2>Test Module Static Assets:</h2>
+<p>If static assets are working, this image should load:</p>
+<img src="/_content/ExampleWebModule/background.png" alt="Module background" style="max-width: 300px; border: 1px solid #ccc;" />
