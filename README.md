@@ -1,12 +1,115 @@
-# Creating a Web Module for the Dynamic Web Platform
+# SharedTools - Dynamic Web Module Loading for ASP.NET Core
 
-This guide provides the essential tips, patterns, and code snippets for creating a new Web Module. Following these standards is crucial for ensuring your module loads correctly and operates reliably within the host application.
+SharedTools is a dynamic web module loading library for ASP.NET Core that enables runtime discovery, download, and loading of web modules from NuGet packages. The key innovation is the ability to load complete web applications (including Razor Pages, static assets, and dependencies) as modular components at startup.
 
-## 1. Overview
+## Overview
 
-A Web Module is a self-contained feature packaged as a NuGet package. It can add new APIs, web pages, background services, and other functionality to the main web application at runtime, without requiring a server restart. Our platform achieves this by dynamically loading your module's NuGet package and integrating it into the ASP.NET Core pipeline.
+SharedTools enables ASP.NET Core applications to dynamically load and integrate new features at runtime. These features, called "Application Part Modules," are packaged as standard NuGet packages and can be stored in any NuGet-compatible repository. This allows for extending applications with new APIs, web pages, services, and static assets without requiring redeployment.
 
-## 2. Setting Up Your Project File (`.csproj`)
+## Key Features
+
+- **Runtime Module Loading**: Load complete ASP.NET Core modules from NuGet at application startup
+- **Full Dependency Resolution**: Automatically resolves and downloads all transitive dependencies
+- **Assembly Isolation**: Prevents version conflicts between modules and host application
+- **Razor Pages Support**: Modules can include compiled Razor Pages and views
+- **Static Asset Handling**: Automatic discovery and serving of embedded static files
+- **Development Workflow**: Local NuGet feed support for rapid development iteration
+
+## Project Structure
+
+This is a .NET 10.0 solution with the following projects:
+
+- **SharedTools.Web**: The core library providing dynamic NuGet package loading and ApplicationPart integration
+  - Handles NuGet package discovery, download, and extraction
+  - Manages isolated assembly loading with dependency resolution
+  - Integrates modules with ASP.NET Core's ApplicationPart system
+  - Supports Razor Pages, static assets, and full MVC features
+
+- **SharedTools.Tests**: Testing utilities and shared test resources
+
+- **ExampleWebModule**: Example web module demonstrating proper module structure
+  - Shows how to implement IApplicationPartModule interface
+  - Includes Razor Pages compiled into the assembly
+  - Demonstrates static asset embedding
+  - Example of NuGet package dependencies (Azure.Storage.Blobs)
+
+- **ExampleWebApp**: Host application demonstrating module consumption
+  - Shows how to load modules from NuGet at startup
+  - Demonstrates loading from local NuGet feed (C:\LocalNuGet)
+  - Example of loading external modules (ProjectGeoShot.Game)
+
+## Quick Start
+
+### Install from NuGet
+
+```bash
+dotnet add package SharedTools.Web
+```
+
+### Basic Usage
+
+```csharp
+// Program.cs
+// Load modules from NuGet (uses nuget.config for source configuration)
+await builder.AddApplicationPartModules(["ExampleWebModule", "ProjectGeoShot.Game"]);
+
+var app = builder.Build();
+
+// ... configure pipeline ...
+
+// Activate loaded modules
+app.UseApplicationPartModules();
+```
+
+## Build and Development Commands
+
+### Build the solution
+```bash
+dotnet build
+```
+
+### Build in release mode
+```bash
+dotnet build -c Release
+```
+
+### Run tests
+```bash
+dotnet test
+```
+
+### Run the example application
+```bash
+cd ExampleWebApp
+dotnet run
+```
+
+### Pack NuGet packages
+```bash
+dotnet pack -c Release
+```
+
+### Pack modules to local NuGet feed (for development)
+```bash
+dotnet pack ExampleWebModule -c Debug
+```
+Note: ExampleWebModule is configured to output to `C:\LocalNuGet` in Debug mode for local testing.
+
+### Clean build artifacts
+```bash
+dotnet clean
+```
+
+## Development Workflow
+
+1. **Develop Module**: Create or modify a web module implementing IApplicationPartModule
+2. **Pack Module**: Run `dotnet pack ExampleWebModule -c Debug` to output to C:\LocalNuGet
+3. **Test Module**: Run the ExampleWebApp which loads modules from the local feed
+4. **Iterate**: Make changes and repack - the module will be reloaded on next app start
+
+## Creating Application Part Modules
+
+### Setting Up Your Project File (`.csproj`)
 
 The project file is the foundation of a well-behaved module. It must be configured to correctly declare its dependencies and its relationship with the host application's framework.
 
@@ -21,7 +124,7 @@ Below is a template for your module's `.csproj` file. Pay close attention to the
 
   <PropertyGroup>
     <!-- IMPORTANT: Target the same .NET version as the host application. -->
-    <TargetFramework>net8.0</TargetFramework> 
+    <TargetFramework>net10.0</TargetFramework> 
     
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -59,7 +162,7 @@ Below is a template for your module's `.csproj` file. Pay close attention to the
       This solves the "type identity" problem, ensuring your module and the host
       are using the exact same IWebModule type from memory.
     -->
-    <PackageReference Include="SharedTools.Web.Abstractions" Version="1.0.0">
+    <PackageReference Include="SharedTools.Web" Version="1.0.0">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
   </ItemGroup>
@@ -80,7 +183,24 @@ Below is a template for your module's `.csproj` file. Pay close attention to the
 </Project>
 ```
 
-## 3. Handling Configuration with the Options Pattern
+### Module Requirements
+
+1. Implement `IApplicationPartModule` interface
+2. Use `ConfigureServices()` for dependency injection setup
+3. Use `Configure()` for middleware/endpoint configuration
+4. Include embedded resources in `wwwroot` folder for static assets
+5. Reference `Microsoft.AspNetCore.App` via `<FrameworkReference>`
+6. Reference `SharedTools.Web` with `<PrivateAssets>all</PrivateAssets>`
+
+### Module Best Practices
+
+- Use Razor SDK (`Microsoft.NET.Sdk.Razor`) for Razor Pages support
+- Set `StaticWebAssetBasePath` to `_content/{ModuleName}`
+- Enable `RazorCompileOnBuild` and `RazorCompileOnPublish`
+- Include all required dependencies in the NuGet package
+- Test with local NuGet feed before publishing
+
+## Handling Configuration with the Options Pattern
 
 Your module should **never** access the host's `IConfiguration` directly with magic strings (e.g., `builder.Configuration["MySetting"]`). Instead, use the strongly-typed **Options Pattern**. This creates a clean, validated, and isolated configuration contract.
 
@@ -112,28 +232,29 @@ public class ModuleOptions
 
 ### Step 2: Register and Use Your Options
 
-In your `IWebModule` implementation, register your options class and bind it to the configuration section.
+In your `IApplicationPartModule` implementation, register your options class and bind it to the configuration section.
 
 **`YourModuleName/Module.cs`**
 ```csharp
 using Microsoft.Extensions.Options;
+using SharedTools.Web.Modules;
 // ... other usings
 
-public class Module : IWebModule
+public class Module : IApplicationPartModule
 {
-    public void ConfigureBuilder(WebApplicationBuilder builder)
+    public void ConfigureServices(IServiceCollection services)
     {
         // 1. Register your options class with the DI container.
         //    - Bind it to the section defined in your options class.
         //    - Add validation to fail fast at startup if configuration is missing/invalid.
-        builder.Services.AddOptions<ModuleOptions>()
+        services.AddOptions<ModuleOptions>()
             .BindConfiguration(ModuleOptions.SectionName)
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
         // 2. Register your module's services. They can now request IOptions<ModuleOptions>
         //    via constructor injection.
-        builder.Services.AddHttpClient<MyModuleService>((serviceProvider, client) =>
+        services.AddHttpClient<MyModuleService>((serviceProvider, client) =>
         {
             var options = serviceProvider.GetRequiredService<IOptions<ModuleOptions>>().Value;
             client.BaseAddress = options.EndpointUrl;
@@ -141,9 +262,14 @@ public class Module : IWebModule
         });
     }
 
-    public void ConfigureApp(WebApplication app)
+    public void Configure(WebApplication app)
     {
         // ... configure endpoints or middleware ...
+    }
+    
+    public void ConfigureApplicationParts(ApplicationPartManager partManager)
+    {
+        // Optional: Advanced ApplicationPart configuration if needed
     }
 }
 ```
@@ -165,89 +291,100 @@ The host application's administrator can now configure your module in `appsettin
 }
 ```
 
-## 4. Module Implementation Checklist
+## Module Implementation Checklist
 
 -   [ ] Does your `.csproj` use `<FrameworkReference Include="Microsoft.AspNetCore.App" />`?
--   [ ] Does your reference to the shared contract package include `<PrivateAssets>all</PrivateAssets>`?
+-   [ ] Does your reference to SharedTools.Web include `<PrivateAssets>all</PrivateAssets>`?
 -   [ ] Are all other dependencies standard `<PackageReference>`s?
 -   [ ] Is all configuration handled via a strongly-typed `Options` class?
 -   [ ] Does your `Options` class include validation attributes (`[Required]`, `[Range]`, etc.)?
--   [ ] Does your `ConfigureBuilder` method call `.ValidateDataAnnotations().ValidateOnStart()` for your options?
+-   [ ] Does your `ConfigureServices` method call `.ValidateDataAnnotations().ValidateOnStart()` for your options?
 -   [ ] Have you filled out the NuGet package properties in your `.csproj`?
 
-By following these guidelines, you will create modules that are robust, maintainable, and integrate seamlessly into our dynamic web platform.
+## Core Architecture
 
+### Dynamic Module Loading System
 
-### Architectural Overview: A Dynamic NuGet-Based Web Module System
+The library provides a complete solution for loading ASP.NET Core web modules from NuGet packages at runtime:
 
-Here is a detailed overview of the system you've built. This documentation covers the goals, key components, and the process flow.
+1. **NuGet Integration**: Full NuGet client implementation for package discovery and download
+2. **Dependency Resolution**: Recursive resolution of all package dependencies with version conflict handling
+3. **Isolated Loading**: Custom AssemblyLoadContext for loading modules with proper dependency isolation
+4. **ASP.NET Integration**: Seamless integration with ApplicationParts for Razor Pages and MVC
+5. **Asset Management**: Automatic discovery and serving of embedded static assets
 
-#### 1. High-Level Goal
+### Architectural Overview
 
-The system's primary goal is to enable an ASP.NET Core web application to dynamically load and integrate new features at runtime. These features, called "Web Modules," are packaged as standard NuGet packages and can be stored in any NuGet-compatible repository. This allows for extending a running application with new APIs, web pages, services, and static assets without requiring a full redeployment or server restart.
+### Key Components
 
-#### 2. Core Architectural Components
+**IApplicationPartModule Interface** (`SharedTools.Web/Modules/IApplicationPartModule.cs`)
+- Core contract that modules must implement
+- `ConfigureServices(IServiceCollection services)` - Register services with DI container
+- `Configure(WebApplication app)` - Configure middleware and endpoints
+- `ConfigureApplicationParts(ApplicationPartManager partManager)` - Advanced ApplicationPart configuration
 
-1.  **The Host Application:**
-    *   An ASP.NET Core web application.
-    *   It is responsible for initiating the module loading process.
-    *   It defines the list of top-level module package IDs to load from its `appsettings.json` or other configuration sources.
-    *   It provides the "shared framework," including ASP.NET Core itself and the core module contract.
+**ApplicationPartModuleExtensions** (`SharedTools.Web/Modules/ApplicationPartModuleExtensions.cs`)
+- Main entry point for module loading functionality
+- `AddApplicationPartModules()` - Discovers, downloads, and loads modules from NuGet
+- `UseApplicationPartModules()` - Activates loaded modules in the pipeline
 
-2.  **The Shared Contract (`SharedTools.Web.Abstractions` / `SharedTools.Web`):**
-    *   A minimal NuGet package containing the `IWebModule` interface.
-    *   This is the **only** thing that is truly shared between the host and all modules. It defines the bootstrap contract: `ConfigureBuilder(WebApplicationBuilder builder)` and `ConfigureApp(WebApplication app)`.
-    *   It may also contain strongly-typed `Options` classes used for configuration contracts between the host and modules.
+**ModuleAssemblyLoadContext** (`SharedTools.Web/Modules/ModuleAssemblyLoadContext.cs`)
+- Custom AssemblyLoadContext providing proper isolation
+- Smart delegation strategy: framework assemblies use host versions, module dependencies load isolated
+- Handles System.* assemblies by trying module directory first, then delegating to host
+- Prevents version conflicts while maintaining compatibility
 
-3.  **Web Modules (`ProjectGeoShot.Game`, etc.):**
-    *   Standard .NET Razor Class Library projects packaged as `.nupkg` files.
-    *   They implement the `IWebModule` interface.
-    *   They reference the shared contract package with `<PrivateAssets>all</PrivateAssets>` to ensure they can compile against the interface without trying to bundle it.
-    *   They reference the ASP.NET Core framework via `<FrameworkReference Include="Microsoft.AspNetCore.App" />` to ensure they don't package framework DLLs.
-    *   All other dependencies (e.g., `Azure.Storage.Blobs`, `Newtonsoft.Json`) are standard `<PackageReference>`s, making them "private" to the module.
+### Assembly Processing Pipeline
 
-4.  **The Runtime Module Loader (`WebModuleExtensions`):**
-    *   A static extension class that contains the core logic for the entire system.
-    *   It is responsible for the entire end-to-end loading process.
+1. **Dependency Resolution**: Recursively resolve all NuGet package dependencies using prioritized repository search
+2. **Download**: Download packages from configured NuGet sources with fallback to nuget.org
+3. **Flat Extraction**: Extract all assemblies to a single "flat" directory for proper dependency resolution
+4. **Isolated Loading**: Use ModuleAssemblyLoadContext to load main assembly with selective delegation
+5. **Type Discovery**: Find concrete types implementing IApplicationPartModule interface
+6. **ASP.NET Integration**: Register assemblies with ApplicationPartManager for MVC/Razor discovery
+7. **Service Configuration**: Call ConfigureServices() for service registration
+8. **Pipeline Configuration**: Call Configure() for middleware/endpoint setup
 
-5.  **The Isolated Load Context (`WebModuleLoadContext`):**
-    *   A custom `System.Runtime.Loader.AssemblyLoadContext`.
-    *   Its purpose is to create an isolated "sandbox" for each loaded module and its private dependencies.
-    *   It overrides the `Load(AssemblyName)` method to implement a critical delegation strategy:
-        *   If an assembly is a **shared framework component** (e.g., `Microsoft.AspNetCore.*`, `Microsoft.Extensions.*`) or the **shared contract**, it delegates loading to the host's default context.
-        *   If an assembly is a **private dependency**, it uses an `AssemblyDependencyResolver` to load it from the plugin's local directory.
+### Static Asset Handling
 
-#### 3. The Runtime Loading Process (Step-by-Step)
+- Embedded `wwwroot` resources are automatically discovered and registered using ManifestEmbeddedFileProvider
+- Uses CompositeFileProvider to combine host and module static assets
+- Assets accessible via `_content/{ModuleName}/` path convention
 
-This flow is initiated by a call to `builder.AddWebModules(...)` in the host's `Program.cs`.
+### Configuration Sources
 
-1.  **Dependency Resolution:**
-    *   For a given module ID (e.g., "ProjectGeoShot.Game"), the loader connects to the configured NuGet repositories.
-    *   It calls `ResolveDependencyGraphAsync` to recursively find all required dependencies (e.g., `Azure.Core`, `Azure.Storage.Blobs`). This produces a complete list of all NuGet packages that need to be installed.
+The system supports multiple NuGet configuration approaches:
+1. Explicit repository URLs passed to `AddApplicationPartModules()`
+2. Discovery from `nuget.config` files in the project directory
+3. Fallback to default nuget.org source
 
-2.  **Downloading:**
-    *   The loader iterates through the full list of packages and downloads each one as a stream from the NuGet repository.
+### Local Development Setup
 
-3.  **"Flat Directory" Extraction:**
-    *   A temporary, unique directory is created for the module and its dependencies (e.g., `C:\Temp\...\ProjectGeoShot.Game.0.1.22_flat\`).
-    *   The loader iterates through each downloaded package stream.
-    *   Using a `PackageArchiveReader`, it inspects the contents and extracts **only the necessary `.dll` files** from the most compatible framework folder (e.g., `/lib/net8.0/`) into the single "flat" directory.
-    *   This ensures all of a module's private dependencies are located in the same folder as the main module DLL.
+The ExampleWebApp includes a `nuget.config` that configures:
+- **Local Feed**: `C:\LocalNuGet` for locally built modules
+- **Official NuGet**: Standard nuget.org source
+- **Visual Studio Offline**: Local Visual Studio packages
 
-4.  **Isolated Assembly Loading:**
-    *   A new instance of `WebModuleLoadContext` is created, pointing to the main module DLL inside the flat directory.
-    *   The main module assembly is loaded into this new context via `loadContext.LoadFromAssemblyPath(...)`.
+This enables testing locally built modules before publishing to public NuGet feeds.
 
-5.  **Type Discovery and Instantiation:**
-    *   The loader uses reflection (`assembly.GetTypes()`) to find all public, concrete classes within the loaded assembly that implement the `IWebModule` interface.
-    *   **Crucially, this type check succeeds** because the `WebModuleLoadContext` has delegated the loading of the `IWebModule` interface's assembly to the host, ensuring both host and plugin are using the exact same `Type` instance.
+## Troubleshooting
 
-6.  **Module Configuration:**
-    *   An instance of the module class is created using `Activator.CreateInstance()`.
-    *   The module's `ConfigureBuilder(builder)` method is called.
-    *   Inside this method, the module configures its own services, often using the **Options Pattern** to bind to a dedicated section of the host's `IConfiguration`.
-    *   **This works without `MissingMethodException`** because the `WebModuleLoadContext` has also delegated the loading of all `Microsoft.AspNetCore.*` assemblies to the host, ensuring type compatibility.
+### Common Issues
 
-7.  **Integration with ASP.NET Core:**
-    *   The module's assembly is added to the host's `ApplicationPartManager`. This allows ASP.NET Core's built-in discovery mechanisms to find Controllers, Razor Pages, and Views from the loaded module.
-    *   After the host application is built (`app = builder.Build()`), the module's `ConfigureApp(app)` method is called, allowing it to register middleware or endpoints.
+1. **FileNotFoundException for dependencies**: Usually indicates missing transitive dependencies. The ModuleAssemblyLoadContext now checks module directory first for System.* assemblies before delegating to host.
+
+2. **Module not loading**: Check that the module implements IApplicationPartModule and is properly packed as a NuGet package.
+
+3. **Static assets not found**: Ensure assets are embedded in wwwroot folder and StaticWebAssetBasePath is configured correctly.
+
+## Testing
+
+The SharedTools.Tests project provides utilities for testing web modules and shared functionality. Tests should verify module loading, service registration, and proper isolation between modules.
+
+## Contributing
+
+Contributions are welcome! Please ensure all changes maintain compatibility with the existing module loading system and include appropriate tests.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
