@@ -37,11 +37,13 @@ jobs:
         
         # Use sed to update the Version tag in csproj files
         sed -i "s/<Version>[0-9]\+\.[0-9]\+\.[0-9]\+\(<.*\)\?<\/Version>/<Version>$VERSION<\/Version>/g" SharedTools.Web/SharedTools.Web.csproj
+        sed -i "s/<Version>[0-9]\+\.[0-9]\+\.[0-9]\+\(<.*\)\?<\/Version>/<Version>$VERSION<\/Version>/g" SharedTools.ModuleManagement/SharedTools.ModuleManagement.csproj
         sed -i "s/<Version>[0-9]\+\.[0-9]\+\.[0-9]\+\(<.*\)\?<\/Version>/<Version>$VERSION<\/Version>/g" SharedTools.Tests/SharedTools.Tests.csproj
         
         # Verify the changes
         echo "Updated versions:"
         grep -o "<Version>.*</Version>" SharedTools.Web/SharedTools.Web.csproj
+        grep -o "<Version>.*</Version>" SharedTools.ModuleManagement/ModuleManagement.Web.csproj
         grep -o "<Version>.*</Version>" SharedTools.Tests/SharedTools.Tests.csproj
     
     - name: Restore dependencies
@@ -55,6 +57,9 @@ jobs:
     
     - name: Pack SharedTools.Web
       run: dotnet pack SharedTools.Web/SharedTools.Web.csproj --configuration Release --no-build --output nuget-packages
+      
+    - name: Pack SharedTools.ModuleManagement
+      run: dotnet pack SharedTools.ModuleManagement/SharedTools.ModuleManagement.csproj --configuration Release --no-build --output nuget-packages
     
     - name: Pack SharedTools.Tests
       run: dotnet pack SharedTools.Tests/SharedTools.Tests.csproj --configuration Release --no-build --output nuget-packages
