@@ -32,7 +32,7 @@ public class ModuleManagementModule : IApplicationPartModule
             AssemblyName = GetType().Assembly.GetName().Name ?? "SharedTools.ModuleManagement",
             Version = GetType().Assembly.GetName().Version?.ToString() ?? "1.0.0",
             Description = "Web-based management interface for viewing and managing loaded modules",
-            EntryPoint = "/_modules"
+            EntryPoint = "/SharedTools.ModuleManagement"
         });
         
         // Register all other loaded modules
@@ -51,11 +51,9 @@ public class ModuleManagementModule : IApplicationPartModule
                     Description = $"Module loaded from {assemblyName.Name}"
                 };
                 
-                // Try to find common entry points
-                if (module.Name == "ExampleWebModule")
-                {
-                    moduleInfo.EntryPoint = "/example";
-                }
+                // Convention-based entry point: modulename/
+                var entryPointName = assemblyName.Name ?? module.Name;
+                moduleInfo.EntryPoint = $"/{entryPointName}/";
                 
                 registry.RegisterModule(moduleInfo);
             }
