@@ -43,7 +43,7 @@ jobs:
         # Verify the changes
         echo "Updated versions:"
         grep -o "<Version>.*</Version>" SharedTools.Web/SharedTools.Web.csproj
-        grep -o "<Version>.*</Version>" SharedTools.ModuleManagement/ModuleManagement.Web.csproj
+        grep -o "<Version>.*</Version>" SharedTools.ModuleManagement/SharedTools.ModuleManagement.csproj
         grep -o "<Version>.*</Version>" SharedTools.Tests/SharedTools.Tests.csproj
     
     - name: Restore dependencies
