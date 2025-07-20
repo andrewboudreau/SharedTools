@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<StaticWebAssetBasePath>_content/SharedTools.ModuleManagement</StaticWebAssetBasePath>
+
+		<!-- Razor compilation settings -->
+		<RazorCompileOnBuild>true</RazorCompileOnBuild>
+		<RazorCompileOnPublish>true</RazorCompileOnPublish>
+		<EnableDefaultRazorGenerateItems>true</EnableDefaultRazorGenerateItems>
+		<AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+
+		<!-- NuGet Package Properties -->
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<PackageId>SharedTools.ModuleManagement</PackageId>
+		<Version>1.0.0</Version>
+		<Authors>SharedTools</Authors>
+		<Description>Web-based management interface for viewing and managing dynamically loaded SharedTools modules</Description>
+
+		<!-- Output to local NuGet feed in Debug mode -->
+		<PackageOutputPath Condition="'$(Configuration)' == 'Debug'">C:\LocalNuGet</PackageOutputPath>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\SharedTools.Web\SharedTools.Web.csproj">
+			<PrivateAssets>all</PrivateAssets>
+		</ProjectReference>
+	</ItemGroup>
+
+</Project>

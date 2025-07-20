@@ -26,6 +26,7 @@ public static class ApplicationPartModuleExtensions
     {
         public List<IApplicationPartModule> Modules { get; } = [];
         public List<(string ModuleName, IFileProvider FileProvider)> StaticFileProviders { get; } = [];
+        public List<ModuleAssemblyLoadContext> AssemblyLoadContexts { get; } = [];
     }
 
     /// <summary>
@@ -132,6 +133,9 @@ public static class ApplicationPartModuleExtensions
                 ProcessAssemblyForModules(
                     assembly, rootPackageIdentity.Id, flatExtractionPath,
                     builder, partManager, moduleRegistry, logger, env, loadContext);
+
+                // Store the load context to prevent it from being garbage collected
+                moduleRegistry.AssemblyLoadContexts.Add(loadContext);
 
                 processedAssemblies.Add(assembly.FullName!);
             }

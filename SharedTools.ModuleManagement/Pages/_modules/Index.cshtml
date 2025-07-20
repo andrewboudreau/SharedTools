@@ -1,0 +1,54 @@
+@page
+@model SharedTools.ModuleManagement.Pages.Modules.IndexModel
+@{
+    ViewData["Title"] = "Module Management";
+}
+
+<div class="container mt-4">
+    <h1 class="mb-4">Loaded Modules</h1>
+    
+    <div class="alert alert-info">
+        <strong>@Model.ModuleCount</strong> modules loaded at startup
+    </div>
+
+    <div class="row">
+        @foreach (var module in Model.Modules)
+        {
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0">@module.Name</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-2">
+                            <strong>Assembly:</strong> @module.AssemblyName<br/>
+                            <strong>Version:</strong> @module.Version<br/>
+                            <strong>Loaded:</strong> @module.LoadedAt.ToString("g")
+                        </p>
+                        @if (!string.IsNullOrEmpty(module.Description))
+                        {
+                            <p class="card-text">@module.Description</p>
+                        }
+                    </div>
+                    <div class="card-footer">
+                        @if (!string.IsNullOrEmpty(module.EntryPoint))
+                        {
+                            <a href="@module.EntryPoint" class="btn btn-primary btn-sm">Visit Module</a>
+                        }
+                        <a href="/_modules/details/@module.AssemblyName" class="btn btn-secondary btn-sm">Details</a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    .card {
+        transition: transform 0.2s;
+    }
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+</style>

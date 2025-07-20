@@ -200,6 +200,37 @@ Modules are automatically discovered, downloaded, extracted, and integrated into
 - **Static Asset Handling**: Automatic discovery and serving of embedded static files
 - **Development Workflow**: Local NuGet feed support for rapid development iteration
 
+## Module Management Hub
+
+### Overview
+
+SharedTools.ModuleManagement is a special module that provides a web-based management interface for viewing and managing loaded modules. Since modules are loaded dynamically at runtime from NuGet packages, this management hub discovers loaded modules and provides:
+
+- Overview page listing all installed modules
+- Module details including version, dependencies, and exposed endpoints
+- Direct links to visit module entry points
+- Module health and status information
+
+### Implementation Requirements
+
+The module management hub itself is implemented as an IApplicationPartModule and must:
+
+1. **Track Module Loading**: Hook into the module loading process to maintain a registry of loaded modules
+2. **Expose Module Metadata**: Collect and display information about each module including:
+   - Module name and version
+   - Exposed routes and endpoints
+   - Static asset paths
+   - Service registrations
+3. **Provide Navigation**: Create a central hub for navigating between modules
+4. **Self-Register**: The management module must be discoverable by itself
+
+### Architecture Considerations
+
+- The hub needs access to ApplicationPartManager to discover loaded assemblies
+- It should register early in the pipeline to track other module registrations
+- Module metadata should be collected during the ConfigureServices phase
+- UI should be accessible at a well-known route (e.g., `/_modules`)
+
 ## Testing
 
 The SharedTools.Tests project provides utilities for testing web modules and shared functionality. Tests should verify module loading, service registration, and proper isolation between modules.

@@ -12,7 +12,7 @@ public class ModuleAssemblyLoadContext : AssemblyLoadContext
     private readonly AssemblyDependencyResolver resolver;
     private readonly Assembly sharedContractsAssembly;
 
-    public ModuleAssemblyLoadContext(string pluginPath) : base(isCollectible: true)
+    public ModuleAssemblyLoadContext(string pluginPath) : base(isCollectible: false)
     {
         resolver = new AssemblyDependencyResolver(pluginPath);
 
