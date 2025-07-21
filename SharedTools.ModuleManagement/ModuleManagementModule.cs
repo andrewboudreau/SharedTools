@@ -9,7 +9,7 @@ namespace SharedTools.ModuleManagement;
 
 public class ModuleManagementModule : IApplicationPartModule
 {
-    public string Name => "Module Management";
+    public string Name => "SharedTools.ModuleManagement";
     
     public void ConfigureServices(IServiceCollection services)
     {
@@ -48,12 +48,9 @@ public class ModuleManagementModule : IApplicationPartModule
                     Name = module.Name,
                     AssemblyName = assemblyName.Name ?? "Unknown",
                     Version = assemblyName.Version?.ToString() ?? "0.0.0",
-                    Description = $"Module loaded from {assemblyName.Name}"
+                    Description = $"Module loaded from {assemblyName.Name}",
+                    EntryPoint = $"/{module.Name}/"
                 };
-                
-                // Convention-based entry point: modulename/
-                var entryPointName = assemblyName.Name ?? module.Name;
-                moduleInfo.EntryPoint = $"/{entryPointName}/";
                 
                 registry.RegisterModule(moduleInfo);
             }
