@@ -37,8 +37,8 @@
 		<Content Include="docs\**\*.md">
 			<Pack>true</Pack>
 			<PackagePath>contentFiles/any/any/docs/%(RecursiveDir)%(Filename)%(Extension)</PackagePath>
-			<CopyToOutput>false</CopyToOutput>
-			<BuildAction>None</BuildAction>
+			<PackageCopyToOutput>false</PackageCopyToOutput>
+			<PackageBuildAction>Content</PackageBuildAction>
 		</Content>
 	</ItemGroup>
 

@@ -25,6 +25,8 @@
     <ItemGroup>
       <None Include="$(ProjectDir)modules-docs\*.md">
         <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+        <Link>modules-docs\%(Filename)%(Extension)</Link>
+        <Visible>true</Visible>
       </None>
     </ItemGroup>
     

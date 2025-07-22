@@ -34,7 +34,8 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "Bash(where gh)",
-      "Bash(dotnet sln add:*)"
+      "Bash(dotnet sln add:*)",
+      "WebFetch(domain:docs.anthropic.com)"
     ],
     "deny": []
   }
