@@ -26,4 +26,28 @@
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
 	</ItemGroup>
 
+	<ItemGroup>
+		<!-- Include MSBuild targets file in the package -->
+		<Content Include="build\SharedTools.Web.targets">
+			<Pack>true</Pack>
+			<PackagePath>build/SharedTools.Web.targets</PackagePath>
+		</Content>
+
+		<!-- Pack documentation as content files -->
+		<Content Include="docs\**\*.md">
+			<Pack>true</Pack>
+			<PackagePath>contentFiles/any/any/docs/%(RecursiveDir)%(Filename)%(Extension)</PackagePath>
+			<CopyToOutput>false</CopyToOutput>
+			<BuildAction>None</BuildAction>
+		</Content>
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Include documentation files in the project (but not in build) -->
+		<None Include="docs\MODULE_MIGRATION.md" />
+		<None Include="docs\MODULE_PUBLISH.md" />
+		<None Include="docs\MODULE_README.md" />
+		<None Include="build\SharedTools.Web.targets" />
+	</ItemGroup>
+
 </Project>

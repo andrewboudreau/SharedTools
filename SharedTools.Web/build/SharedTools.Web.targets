@@ -1,0 +1,38 @@
+<Project>
+  <Target Name="CopySharedToolsDocs" BeforeTargets="BeforeBuild" Condition="'$(SkipSharedToolsDocs)' != 'true'">
+    <Message Text="Copying SharedTools documentation to project..." Importance="normal" />
+    
+    <!-- Create modules-docs directory -->
+    <MakeDir Directories="$(ProjectDir)modules-docs" />
+    
+    <!-- Copy docs to modules-docs folder with renamed files -->
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)../contentFiles/any/any/docs/MODULE_MIGRATION.md" 
+          DestinationFiles="$(ProjectDir)modules-docs/MODULE_MIGRATION.md" 
+          SkipUnchangedFiles="true" 
+          Condition="Exists('$(MSBuildThisFileDirectory)../contentFiles/any/any/docs/MODULE_MIGRATION.md')" />
+    
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)../contentFiles/any/any/docs/MODULE_PUBLISH.md" 
+          DestinationFiles="$(ProjectDir)modules-docs/MODULE_PUBLISH.md" 
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(MSBuildThisFileDirectory)../contentFiles/any/any/docs/MODULE_PUBLISH.md')" />
+    
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)../contentFiles/any/any/docs/MODULE_README.md" 
+          DestinationFiles="$(ProjectDir)modules-docs/MODULE_README.md" 
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(MSBuildThisFileDirectory)../contentFiles/any/any/docs/MODULE_README.md')" />
+
+    <!-- Mark files as not part of the build -->
+    <ItemGroup>
+      <None Include="$(ProjectDir)modules-docs\*.md">
+        <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      </None>
+    </ItemGroup>
+    
+    <Message Text="SharedTools documentation copied to modules-docs/ folder" Importance="normal" />
+  </Target>
+  
+  <!-- Allow users to disable doc copying by setting SkipSharedToolsDocs=true -->
+  <PropertyGroup>
+    <SkipSharedToolsDocs Condition="'$(SkipSharedToolsDocs)' == ''">false</SkipSharedToolsDocs>
+  </PropertyGroup>
+</Project>
