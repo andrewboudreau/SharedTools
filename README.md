@@ -12,7 +12,7 @@ SharedTools enables ASP.NET Core applications to dynamically load and integrate 
 - **Full Dependency Resolution**: Automatically resolves and downloads all transitive dependencies
 - **Assembly Isolation**: Prevents version conflicts between modules and host application
 - **Razor Pages Support**: Modules can include compiled Razor Pages and views
-- **Static Asset Handling**: Automatic discovery and serving of static files via StaticWebAssetBasePath
+- **Static Asset Handling**: Automatic discovery and serving of embedded static files
 - **Development Workflow**: Local NuGet feed support for rapid development iteration
 
 ## Project Structure
@@ -30,7 +30,7 @@ This is a .NET 10.0 solution with the following projects:
 - **ExampleWebModule**: Example web module demonstrating proper module structure
   - Shows how to implement IApplicationPartModule interface
   - Includes Razor Pages compiled into the assembly
-  - Demonstrates static asset configuration using StaticWebAssetBasePath
+  - Demonstrates embedded static assets in wwwroot folder
   - Example of NuGet package dependencies (Azure.Storage.Blobs)
 
 - **ExampleWebApp**: Host application demonstrating module consumption
@@ -188,14 +188,14 @@ Below is a template for your module's `.csproj` file. Pay close attention to the
 1. Implement `IApplicationPartModule` interface
 2. Use `ConfigureServices()` for dependency injection setup
 3. Use `Configure()` for middleware/endpoint configuration
-4. Configure static assets with `StaticWebAssetBasePath` in project file
+4. Embed static assets with `<EmbeddedResource Include="wwwroot\**\*" />` in project file
 5. Reference `Microsoft.AspNetCore.App` via `<FrameworkReference>`
 6. Reference `SharedTools.Web` with `<PrivateAssets>all</PrivateAssets>`
 
 ### Module Best Practices
 
 - Use Razor SDK (`Microsoft.NET.Sdk.Razor`) for Razor Pages support
-- Set `StaticWebAssetBasePath` to `_content/{ModuleName}`
+- Embed static assets with `<EmbeddedResource Include="wwwroot\**\*" />`
 - Enable `RazorCompileOnBuild` and `RazorCompileOnPublish`
 - Include all required dependencies in the NuGet package
 - Test with local NuGet feed before publishing
@@ -347,10 +347,10 @@ The library provides a complete solution for loading ASP.NET Core web modules fr
 
 ### Static Asset Handling
 
-- Static assets in the `wwwroot` folder are automatically served via the configured `StaticWebAssetBasePath`
-- The `StaticWebAssetBasePath` property in the project file determines the URL path for serving assets
+- Static assets in the `wwwroot` folder are embedded as resources in the module assembly
+- Assets are automatically discovered and served via `ManifestEmbeddedFileProvider`
 - Assets accessible via `_content/{ModuleName}/` path convention
-- This approach works for both Razor SDK and regular SDK projects, providing better performance and tooling support
+- Provides single file deployment and faster module loading with no extraction step
 
 ### Configuration Sources
 
@@ -376,7 +376,7 @@ This enables testing locally built modules before publishing to public NuGet fee
 
 2. **Module not loading**: Check that the module implements IApplicationPartModule and is properly packed as a NuGet package.
 
-3. **Static assets not found**: Ensure assets are in the wwwroot folder and StaticWebAssetBasePath is configured correctly in the project file.
+3. **Static assets not found**: Ensure assets are in the wwwroot folder and `<EmbeddedResource Include="wwwroot\**\*" />` is configured in the project file.
 
 ## Testing
 

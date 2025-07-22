@@ -3,7 +3,6 @@
 		<TargetFramework>net10.0</TargetFramework>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
-		<StaticWebAssetBasePath>_content/ExampleWebModule</StaticWebAssetBasePath>
 		<PackageOutputPath Condition="'$(Configuration)' == 'Debug'">C:\LocalNuGet</PackageOutputPath>
 		<!-- Ensure Razor views are compiled into the main assembly -->
 		<RazorCompileOnBuild>true</RazorCompileOnBuild>
@@ -23,6 +22,11 @@
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 	</PropertyGroup>
 
+	<ItemGroup>
+		<!-- Embed wwwroot files as resources in the assembly -->
+		<EmbeddedResource Include="wwwroot\**\*" />
+	</ItemGroup>
+	
 	<ItemGroup>
 		<!-- This tells the project that the entire ASP.NET Core runtime is provided by the host. -->
 		<!-- It gives you access to WebApplicationBuilder, IServiceCollection, Components, etc. -->

@@ -119,9 +119,10 @@ The library provides a complete solution for loading ASP.NET Core web modules fr
 
 ### Static Asset Handling
 
-- Embedded `wwwroot` resources are automatically discovered and registered using ManifestEmbeddedFileProvider
-- Uses CompositeFileProvider to combine host and module static assets
+- Static assets in `wwwroot` folder are embedded as resources in the module assembly
+- Automatically discovered and served using ManifestEmbeddedFileProvider
 - Assets accessible via `_content/{ModuleName}/` path convention
+- No extraction step required - faster module loading
 
 ### Key Dependencies
 
@@ -197,7 +198,7 @@ Modules are automatically discovered, downloaded, extracted, and integrated into
 - **Full Dependency Resolution**: Automatically resolves and downloads all transitive dependencies
 - **Assembly Isolation**: Prevents version conflicts between modules and host application
 - **Razor Pages Support**: Modules can include compiled Razor Pages and views
-- **Static Asset Handling**: Automatic discovery and serving of embedded static files
+- **Static Asset Handling**: Embedded static assets served via ManifestEmbeddedFileProvider
 - **Development Workflow**: Local NuGet feed support for rapid development iteration
 
 ## Module Management Hub

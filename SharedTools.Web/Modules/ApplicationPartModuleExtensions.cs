@@ -229,7 +229,7 @@ public static class ApplicationPartModuleExtensions
                     moduleType.FullName, assembly.FullName ?? "UnknownAssembly");
 
                 // Handle static assets
-                RegisterModuleStaticAssets(assembly, module.Name, extractionPath, moduleRegistry, logger);
+                RegisterModuleStaticAssets(assembly, module.Name, moduleRegistry, logger);
             }
             catch (Exception ex)
             {
@@ -263,7 +263,6 @@ public static class ApplicationPartModuleExtensions
     private static void RegisterModuleStaticAssets(
         Assembly assembly,
         string moduleName,
-        string extractionPath,
         ModuleRegistry moduleRegistry,
         ILogger? logger)
     {
@@ -278,16 +277,6 @@ public static class ApplicationPartModuleExtensions
                 moduleName, assembly.FullName ?? "UnknownAssembly");
         }
 
-        // Check for extracted static assets
-        var staticAssetsPath = Path.Combine(extractionPath, "wwwroot");
-        if (Directory.Exists(staticAssetsPath))
-        {
-            var physicalProvider = new PhysicalFileProvider(staticAssetsPath);
-            moduleRegistry.StaticFileProviders.Add((moduleName, physicalProvider));
-            logger?.LogInformation(
-                "Registered PhysicalFileProvider for module {ModuleName} from {StaticAssetsPath}",
-                moduleName, staticAssetsPath);
-        }
     }
 
     /// <summary>
@@ -393,64 +382,12 @@ public static class ApplicationPartModuleExtensions
                     }
                 }
 
-                // Extract static web assets
-                var allFiles = reader.GetFiles();
-                foreach (var file in allFiles)
-                {
-                    if (file.StartsWith("staticwebassets/", StringComparison.OrdinalIgnoreCase) ||
-                        file.StartsWith("contentFiles/", StringComparison.OrdinalIgnoreCase))
-                    {
-                        var relativePath = ExtractRelativePath(file);
-                        var extractPath = Path.Combine(flatExtractionPath, "wwwroot", relativePath);
-                        var extractDir = Path.GetDirectoryName(extractPath);
-
-                        if (!string.IsNullOrEmpty(extractDir))
-                        {
-                            Directory.CreateDirectory(extractDir);
-                        }
-
-                        try
-                        {
-                            reader.ExtractFile(file, extractPath, NuGetLogger);
-                            logger?.LogTrace("Extracted static asset: {File} -> {ExtractPath}",
-                                file, extractPath);
-                        }
-                        catch (Exception ex)
-                        {
-                            logger?.LogWarning("Failed to extract static asset {File}: {Error}",
-                                file, ex.Message);
-                        }
-                    }
-                }
             }
 
             downloadResult.Dispose();
         }
     }
 
-    private static string ExtractRelativePath(string file)
-    {
-        if (file.StartsWith("staticwebassets/", StringComparison.OrdinalIgnoreCase))
-        {
-            return file.Substring("staticwebassets/".Length);
-        }
-        else if (file.StartsWith("contentFiles/", StringComparison.OrdinalIgnoreCase))
-        {
-            var relativePath = file["contentFiles/".Length..];
-            // Skip framework-specific folders in contentFiles
-            if (relativePath.Contains('/') &&
-                (relativePath.StartsWith("any/") || relativePath.StartsWith("cs/")))
-            {
-                var parts = relativePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length > 1)
-                {
-                    relativePath = string.Join("/", parts.Skip(1));
-                }
-            }
-            return relativePath;
-        }
-        return file;
-    }
 
     // The remaining helper methods (ResolveDependencyGraphAsync, FindAndDownloadPackageAsync, 
     // CreateSourceRepositories, CreateTemporaryLogger) remain the same as in WebModuleExtensions

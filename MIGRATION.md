@@ -97,19 +97,19 @@ SharedTools modules are self-contained ASP.NET Core components that:
 
 #### Important: Static Asset Configuration
 
-**StaticWebAssetBasePath is the preferred approach for all module types.** Whether you're using the Razor SDK or the regular SDK, you should configure static assets using:
+**Embedded resources are the only supported approach for static assets.** All modules must use embedded resources for their static content:
 
 ```xml
-<StaticWebAssetBasePath>_content/YourModuleName</StaticWebAssetBasePath>
+<EmbeddedResource Include="wwwroot\**\*" />
 ```
 
 This approach provides:
-- Better build-time performance
-- Improved tooling support
-- Consistent behavior across SDK types
-- Automatic integration with ASP.NET Core's static file middleware
+- Single file deployment - everything in the DLL
+- No extraction step - faster module loading  
+- Atomic deployment - guaranteed file availability
+- Better for containerized environments
 
-**Do not use embedded resources** (`<EmbeddedResource Include="wwwroot\**\*" />`) as this approach is less efficient and requires additional runtime processing.
+**Do not use StaticWebAssetBasePath** as static web assets extraction has been removed from the module loading system.
 
 ### 2. Implement IApplicationPartModule
 
