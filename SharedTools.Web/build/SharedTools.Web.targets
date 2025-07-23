@@ -6,20 +6,20 @@
     <MakeDir Directories="$(ProjectDir)modules-docs" />
     
     <!-- Copy docs to modules-docs folder with renamed files -->
-    <Copy SourceFiles="$(MSBuildThisFileDirectory)../contentFiles/any/any/docs/MODULE_MIGRATION.md" 
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)../contentFiles/any/any/Modules/Instructions/MODULE_MIGRATION.md" 
           DestinationFiles="$(ProjectDir)modules-docs/MODULE_MIGRATION.md" 
           SkipUnchangedFiles="true" 
-          Condition="Exists('$(MSBuildThisFileDirectory)../contentFiles/any/any/docs/MODULE_MIGRATION.md')" />
+          Condition="Exists('$(MSBuildThisFileDirectory)../contentFiles/any/any/Modules/Instructions/MODULE_MIGRATION.md')" />
     
-    <Copy SourceFiles="$(MSBuildThisFileDirectory)../contentFiles/any/any/docs/MODULE_PUBLISH.md" 
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)../contentFiles/any/any/Modules/Instructions/MODULE_PUBLISH.md" 
           DestinationFiles="$(ProjectDir)modules-docs/MODULE_PUBLISH.md" 
           SkipUnchangedFiles="true"
-          Condition="Exists('$(MSBuildThisFileDirectory)../contentFiles/any/any/docs/MODULE_PUBLISH.md')" />
+          Condition="Exists('$(MSBuildThisFileDirectory)../contentFiles/any/any/Modules/Instructions/MODULE_PUBLISH.md')" />
     
-    <Copy SourceFiles="$(MSBuildThisFileDirectory)../contentFiles/any/any/docs/MODULE_README.md" 
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)../contentFiles/any/any/Modules/Instructions/MODULE_README.md" 
           DestinationFiles="$(ProjectDir)modules-docs/MODULE_README.md" 
           SkipUnchangedFiles="true"
-          Condition="Exists('$(MSBuildThisFileDirectory)../contentFiles/any/any/docs/MODULE_README.md')" />
+          Condition="Exists('$(MSBuildThisFileDirectory)../contentFiles/any/any/Modules/Instructions/MODULE_README.md')" />
 
     <!-- Mark files as not part of the build -->
     <ItemGroup>
