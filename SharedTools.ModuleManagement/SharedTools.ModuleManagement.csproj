@@ -4,7 +4,6 @@
 		<TargetFramework>net10.0</TargetFramework>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
-		<StaticWebAssetBasePath>_content/SharedTools.ModuleManagement</StaticWebAssetBasePath>
 
 		<!-- Razor compilation settings -->
 		<RazorCompileOnBuild>true</RazorCompileOnBuild>
