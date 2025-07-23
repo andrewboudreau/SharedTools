@@ -32,14 +32,6 @@
 			<Pack>true</Pack>
 			<PackagePath>build/SharedTools.Web.targets</PackagePath>
 		</Content>
-
-		<!-- Pack documentation as content files -->
-		<Content Include="docs\**\*.md">
-			<Pack>true</Pack>
-			<PackagePath>contentFiles/any/any/docs/%(RecursiveDir)%(Filename)%(Extension)</PackagePath>
-			<PackageCopyToOutput>false</PackageCopyToOutput>
-			<PackageBuildAction>Content</PackageBuildAction>
-		</Content>
 	</ItemGroup>
 
 	<ItemGroup>
