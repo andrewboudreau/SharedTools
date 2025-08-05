@@ -10,7 +10,7 @@ builder.Services
 // This will download packages, resolve dependencies, and register them as ApplicationParts
 await builder.AddApplicationPartModules([
     "ExampleWebModule", 
-//    "SharedTools.ModuleManagement"
+    "SharedTools.ModuleManagement"
 ]);
 
 var app = builder.Build();
