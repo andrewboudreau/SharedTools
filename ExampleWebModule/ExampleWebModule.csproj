@@ -28,11 +28,8 @@
 	</ItemGroup>
 	
 	<ItemGroup>
-		<!-- This tells the project that the entire ASP.NET Core runtime is provided by the host. -->
-		<!-- It gives you access to WebApplicationBuilder, IServiceCollection, Components, etc. -->
-		<!-- but ensures they are NOT packaged as dependencies. -->
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
-		<SupportedPlatform Include="browser" />
+		
 	</ItemGroup>
 
 	<ItemGroup>

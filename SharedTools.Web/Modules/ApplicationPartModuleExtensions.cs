@@ -234,8 +234,8 @@ public static class ApplicationPartModuleExtensions
             catch (Exception ex)
             {
                 logger?.LogError(ex,
-                    "Failed to create instance or configure module {ModuleTypeName} from assembly {AssemblyName}",
-                    moduleType.FullName, assembly.FullName ?? "UnknownAssembly");
+                    "Failed to create instance or configure module {ModuleTypeName} from assembly {AssemblyName}\r\n{Error}",
+                    moduleType.FullName, assembly.FullName ?? "UnknownAssembly", ex.Message);
             }
         }
 
@@ -268,15 +268,22 @@ public static class ApplicationPartModuleExtensions
     {
         // Check for embedded wwwroot resources
         var manifestResourceNames = assembly.GetManifestResourceNames();
-        if (manifestResourceNames.Any(r => r.StartsWith("wwwroot", StringComparison.OrdinalIgnoreCase)))
+        logger?.LogInformation("We found {ResourceCount} manifest resources in assembly {AssemblyName} {items}",
+            manifestResourceNames.Length, assembly.FullName ?? "UnknownAssembly", 
+            string.Join("\r\n\t", manifestResourceNames)
+        );
+
+        if (manifestResourceNames.Any(r => r.Contains("wwwroot.", StringComparison.OrdinalIgnoreCase)))
         {
-            var embeddedProvider = new ManifestEmbeddedFileProvider(assembly, "wwwroot");
+            // Use EmbeddedFileProvider instead of ManifestEmbeddedFileProvider
+            // The namespace prefix for embedded resources is the assembly name + ".wwwroot"
+            var assemblyName = assembly.GetName().Name ?? "Unknown";
+            var embeddedProvider = new EmbeddedFileProvider(assembly, $"{assemblyName}.wwwroot");
             moduleRegistry.StaticFileProviders.Add((moduleName, embeddedProvider));
             logger?.LogInformation(
-                "Registered ManifestEmbeddedFileProvider for module {ModuleName} from assembly {AssemblyName}",
-                moduleName, assembly.FullName ?? "UnknownAssembly");
+                "Registered EmbeddedFileProvider for module {ModuleName} from assembly {AssemblyName} with base namespace {BaseNamespace}",
+                moduleName, assembly.FullName ?? "UnknownAssembly", $"{assemblyName}.wwwroot");
         }
-
     }
 
     /// <summary>
