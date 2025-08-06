@@ -298,11 +298,20 @@ public static class ApplicationPartModuleExtensions
             foreach (var (moduleName, fileProvider) in moduleRegistry.StaticFileProviders)
             {
                 var requestPath = $"/_content/{moduleName}";
+                
+                // Validate module name to prevent path traversal
+                if (!IsValidModuleName(moduleName))
+                {
+                    logger?.LogWarning("Skipping static file configuration for module with invalid name: {ModuleName}", moduleName);
+                    continue;
+                }
+
                 app.UseStaticFiles(new StaticFileOptions
                 {
                     FileProvider = fileProvider,
                     RequestPath = requestPath
                 });
+                
                 logger?.LogInformation("Configured static files for module {ModuleName} at path {RequestPath}",
                     moduleName, requestPath);
             }
@@ -327,6 +336,27 @@ public static class ApplicationPartModuleExtensions
         }
 
         return app;
+    }
+
+    /// <summary>
+    /// Validates that a module name is safe for use in URL paths.
+    /// Prevents directory traversal and other path-based attacks.
+    /// </summary>
+    private static bool IsValidModuleName(string moduleName)
+    {
+        if (string.IsNullOrWhiteSpace(moduleName))
+            return false;
+
+        // Check for path traversal attempts
+        if (moduleName.Contains("..") || moduleName.Contains('/') || moduleName.Contains('\\'))
+            return false;
+
+        // Check for potentially dangerous characters
+        var invalidChars = Path.GetInvalidFileNameChars().Concat(['<', '>', ':', '"', '|', '?', '*']);
+        if (moduleName.Any(c => invalidChars.Contains(c)))
+            return false;
+
+        return true;
     }
 
     #region Helper Methods
