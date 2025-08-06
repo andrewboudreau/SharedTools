@@ -89,15 +89,7 @@ public static class SelfHostingExtensions
         int httpsPort = 7001,
         int httpPort = 5001)
     {
-        return await CreateModularApplicationAsync(
-            args: args,
-            packageIds: [packageId],
-            nuGetRepositoryUrls: [localNuGetPath],
-            urls: [$"https://localhost:{httpsPort}", $"http://localhost:{httpPort}"],
-            configureApp: app =>
-            {
-                Console.WriteLine($"🚀 {packageId} loaded from NuGet: https://localhost:{httpsPort}/{packageId}");
-            });
+        return await CreateSelfHostedModuleAsync(args, [packageId], localNuGetPath, httpsPort, httpPort);
     }
 
     public static async Task<WebApplication> CreateSelfHostedModuleAsync(

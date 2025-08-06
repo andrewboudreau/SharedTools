@@ -93,8 +93,7 @@ public static class ApplicationPartModuleExtensions
                 }
                 Directory.CreateDirectory(flatExtractionPath);
 
-                logger?.LogInformation("Extracting all package dependencies to flat directory: {Path}",
-                    flatExtractionPath);
+                logger?.LogInformation("Extracting all package dependencies to flat directory: {Path}", flatExtractionPath);
 
                 // Extract all packages to flat directory
                 await ExtractPackagesToFlatDirectory(
@@ -105,8 +104,7 @@ public static class ApplicationPartModuleExtensions
                 string mainAssemblyPath = Path.Combine(flatExtractionPath, $"{rootPackageIdentity.Id}.dll");
                 if (!File.Exists(mainAssemblyPath))
                 {
-                    logger?.LogError("Could not find main assembly {AssemblyPath} after extraction.",
-                        mainAssemblyPath);
+                    logger?.LogError("Could not find main assembly {AssemblyPath} after extraction.", mainAssemblyPath);
                     continue;
                 }
 
@@ -126,8 +124,7 @@ public static class ApplicationPartModuleExtensions
 
                 if (processedAssemblies.Contains(assembly.FullName!))
                 {
-                    logger?.LogInformation("Assembly {AssemblyName} was already processed. Skipping.",
-                        assembly.FullName);
+                    logger?.LogInformation("Assembly {AssemblyName} was already processed. Skipping.", assembly.FullName);
                     continue;
                 }
 
@@ -142,8 +139,7 @@ public static class ApplicationPartModuleExtensions
             }
             catch (Exception ex)
             {
-                logger?.LogError(ex, "An unhandled error occurred while processing package {PackageId}",
-                    packageId);
+                logger?.LogError(ex, "An unhandled error occurred while processing package {PackageId}", packageId);
             }
         }
 
@@ -151,8 +147,7 @@ public static class ApplicationPartModuleExtensions
         builder.Services.AddSingleton<IReadOnlyCollection<IApplicationPartModule>>(
             moduleRegistry.Modules.AsReadOnly());
 
-        logger?.LogInformation("Registered {ModuleCount} application part modules in total.",
-            moduleRegistry.Modules.Count);
+        logger?.LogInformation("Registered {ModuleCount} application part modules in total.", moduleRegistry.Modules.Count);
 
         return builder;
     }
@@ -168,8 +163,7 @@ public static class ApplicationPartModuleExtensions
         IWebHostEnvironment env,
         ModuleAssemblyLoadContext loadContext)
     {
-        logger?.LogInformation("Processing assembly {AssemblyName} for application part modules.",
-            assembly.FullName ?? "UnknownAssembly");
+        logger?.LogInformation("Processing assembly {AssemblyName} for application part modules.", assembly.FullName ?? "UnknownAssembly");
 
         // Find all types implementing IApplicationPartModule
         Type[] types;
@@ -189,8 +183,7 @@ public static class ApplicationPartModuleExtensions
             .Where(t => t != null && typeof(IApplicationPartModule).IsAssignableFrom(t) &&
                        !t.IsInterface && !t.IsAbstract);
 
-        logger?.LogInformation("Found {ModuleTypeCount} IApplicationPartModule implementations in {AssemblyName}",
-            moduleTypes.Count(), assembly.FullName ?? "UnknownAssembly");
+        logger?.LogInformation("Found {ModuleTypeCount} IApplicationPartModule implementations in {AssemblyName}", moduleTypes.Count(), assembly.FullName ?? "UnknownAssembly");
 
         foreach (var moduleType in moduleTypes)
         {
@@ -211,8 +204,8 @@ public static class ApplicationPartModuleExtensions
                 // Add CompiledRazorAssemblyPart for the main assembly (views are compiled into main assembly in .NET 6+)
                 var compiledRazorPart = new CompiledRazorAssemblyPart(assembly);
                 partManager.ApplicationParts.Add(compiledRazorPart);
-                logger?.LogInformation("Added CompiledRazorAssemblyPart for main assembly {AssemblyName} of module {ModuleName}", 
-                    assembly.GetName().Name, module.Name);               
+                logger?.LogInformation("Added CompiledRazorAssemblyPart for main assembly {AssemblyName} of module {ModuleName}",
+                    assembly.GetName().Name, module.Name);
 
                 // Let the module configure additional application parts if needed
                 module.ConfigureApplicationParts(partManager);
@@ -250,8 +243,7 @@ public static class ApplicationPartModuleExtensions
                 crap.Assembly == assembly))
             {
                 partManager.ApplicationParts.Add(new CompiledRazorAssemblyPart(assembly));
-                logger?.LogTrace("Added CompiledRazorAssemblyPart for {AssemblyName}",
-                    assembly.FullName ?? "UnknownAssembly");
+                logger?.LogTrace("Added CompiledRazorAssemblyPart for {AssemblyName}", assembly.FullName ?? "UnknownAssembly");
             }
         }
     }
@@ -269,11 +261,11 @@ public static class ApplicationPartModuleExtensions
 
         if (manifestResourceNames.Any(r => r.Contains("wwwroot.", StringComparison.OrdinalIgnoreCase)))
         {
-            // Use EmbeddedFileProvider instead of ManifestEmbeddedFileProvider
             // The namespace prefix for embedded resources is the assembly name + ".wwwroot"
             var assemblyName = assembly.GetName().Name ?? "Unknown";
             var embeddedProvider = new EmbeddedFileProvider(assembly, $"{assemblyName}.wwwroot");
             moduleRegistry.StaticFileProviders.Add((moduleName, embeddedProvider));
+
             logger?.LogInformation(
                 "Registered EmbeddedFileProvider for module {ModuleName} from assembly {AssemblyName} with base namespace {BaseNamespace}",
                 moduleName, assembly.FullName ?? "UnknownAssembly", $"{assemblyName}.wwwroot");
@@ -292,17 +284,16 @@ public static class ApplicationPartModuleExtensions
         var moduleRegistry = app.Services.GetService<ModuleRegistry>();
         if (moduleRegistry != null)
         {
-            logger?.LogInformation("Configuring static files for {ProviderCount} providers",
-                moduleRegistry.StaticFileProviders.Count);
+            logger?.LogInformation("Configuring static files for {ProviderCount} providers", moduleRegistry.StaticFileProviders.Count);
 
             foreach (var (moduleName, fileProvider) in moduleRegistry.StaticFileProviders)
             {
                 var requestPath = $"/_content/{moduleName}";
-                
+
                 // Validate module name to prevent path traversal
                 if (!IsValidModuleName(moduleName))
                 {
-                    logger?.LogWarning("Skipping static file configuration for module with invalid name: {ModuleName}", moduleName);
+                    logger?.LogError("Skipping static file configuration for module with invalid name: {ModuleName}", moduleName);
                     continue;
                 }
 
@@ -311,9 +302,8 @@ public static class ApplicationPartModuleExtensions
                     FileProvider = fileProvider,
                     RequestPath = requestPath
                 });
-                
-                logger?.LogInformation("Configured static files for module {ModuleName} at path {RequestPath}",
-                    moduleName, requestPath);
+
+                logger?.LogInformation("Configured static files for module {ModuleName} at path {RequestPath}", moduleName, requestPath);
             }
         }
 
@@ -622,7 +612,7 @@ public static class ApplicationPartModuleExtensions
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Error] Failed to create temporary logger: {ex.Message}");
+            Console.WriteLine("[Error] Failed to create temporary logger: {ErrorMessage}", ex.Message);
             return null;
         }
     }
@@ -646,7 +636,7 @@ public static class ApplicationPartModuleExtensions
 
             if (discoveredSources.Any())
             {
-                logger?.LogInformation($"Discovered {discoveredSources.Count()} sources from nuget.config.");
+                logger?.LogInformation("Discovered {DiscoveredSourcesCount} sources from nuget.config.", discoveredSources.Count());
                 sources.AddRange(discoveredSources);
             }
             else
