@@ -1,4 +1,8 @@
 <Project>
+  <!-- ================================================================== -->
+  <!-- DOCUMENTATION COPYING                                              -->
+  <!-- ================================================================== -->
+  
   <Target Name="CopySharedToolsDocs" BeforeTargets="BeforeBuild" Condition="'$(SkipSharedToolsDocs)' != 'true'">
     <Message Text="Copying SharedTools documentation to project..." Importance="normal" />
     

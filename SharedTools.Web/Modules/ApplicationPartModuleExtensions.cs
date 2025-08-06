@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Builder;
+﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.Extensions.DependencyInjection;
@@ -202,15 +202,10 @@ public static class ApplicationPartModuleExtensions
                 // Configure services
                 module.ConfigureServices(builder.Services);
 
-                // Create and add ModuleApplicationPart
-                var modulePart = new ModuleApplicationPart(assembly, module);
-                partManager.ApplicationParts.Add(modulePart);
-
-                // Also add as AssemblyPart for Razor Pages discovery
-                var assemblyPart = new AssemblyPart(assembly);
+                // Add AssemblyPart for Razor Pages discovery
                 if (!partManager.ApplicationParts.Any(p => p is AssemblyPart ap && ap.Assembly == assembly))
                 {
-                    partManager.ApplicationParts.Add(assemblyPart);
+                    partManager.ApplicationParts.Add(new AssemblyPart(assembly));
                 }
 
                 // Add CompiledRazorAssemblyPart for the main assembly (views are compiled into main assembly in .NET 6+)
@@ -269,10 +264,8 @@ public static class ApplicationPartModuleExtensions
     {
         // Check for embedded wwwroot resources
         var manifestResourceNames = assembly.GetManifestResourceNames();
-        logger?.LogInformation("We found {ResourceCount} manifest resources in assembly {AssemblyName} {items}",
-            manifestResourceNames.Length, assembly.FullName ?? "UnknownAssembly", 
-            string.Join("\r\n\t", manifestResourceNames)
-        );
+        logger?.LogInformation("We found {ResourceCount} manifest resources in assembly {AssemblyName}",
+            manifestResourceNames.Length, assembly.FullName ?? "UnknownAssembly");
 
         if (manifestResourceNames.Any(r => r.Contains("wwwroot.", StringComparison.OrdinalIgnoreCase)))
         {
