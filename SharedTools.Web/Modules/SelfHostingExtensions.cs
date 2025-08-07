@@ -14,7 +14,6 @@ public static class SelfHostingExtensions
     /// <param name="args">Command line arguments</param>
     /// <param name="packageIds">NuGet package IDs to load as modules</param>
     /// <param name="nuGetRepositoryUrls">Optional NuGet repository URLs (uses nuget.config if not provided)</param>
-    /// <param name="urls">Optional URLs for the web host (e.g., "https://localhost:7001", "http://localhost:5001")</param>
     /// <param name="configureDevelopment">Optional action to configure development-specific settings</param>
     /// <param name="configureServices">Optional action to configure additional services</param>
     /// <param name="configureApp">Optional action to configure additional middleware/endpoints</param>
@@ -23,18 +22,11 @@ public static class SelfHostingExtensions
         string[] args,
         IEnumerable<string> packageIds,
         IEnumerable<string>? nuGetRepositoryUrls = null,
-        IEnumerable<string>? urls = null,
         Action<WebApplicationBuilder>? configureDevelopment = null,
         Action<IServiceCollection>? configureServices = null,
         Action<WebApplication>? configureApp = null)
     {
         var builder = WebApplication.CreateBuilder(args);
-
-        // Configure URLs if provided
-        if (urls?.Any() == true)
-        {
-            builder.WebHost.UseUrls([.. urls]);
-        }
 
         // Add standard services
         builder.Services.AddRazorPages();
@@ -79,37 +71,23 @@ public static class SelfHostingExtensions
     /// <param name="args">Command line arguments</param>
     /// <param name="packageId">The module package ID to load</param>
     /// <param name="localNuGetPath">Path to local NuGet repository (defaults to C:\LocalNuGet)</param>
-    /// <param name="httpsPort">HTTPS port (defaults to 7001)</param>
-    /// <param name="httpPort">HTTP port (defaults to 5001)</param>
     /// <returns>A configured WebApplication ready to run</returns>
     public static async Task<WebApplication> CreateSelfHostedModuleAsync(
         string[] args,
         string packageId,
-        string localNuGetPath = "C:\\LocalNuGet",
-        int httpsPort = 7001,
-        int httpPort = 5001)
+        string localNuGetPath = "C:\\LocalNuGet")
     {
-        return await CreateSelfHostedModuleAsync(args, [packageId], localNuGetPath, httpsPort, httpPort);
+        return await CreateSelfHostedModuleAsync(args, [packageId], localNuGetPath);
     }
 
     public static async Task<WebApplication> CreateSelfHostedModuleAsync(
         string[] args,
         string[] packageIds,
-        string localNuGetPath = "C:\\LocalNuGet",
-        int httpsPort = 7001,
-        int httpPort = 5001)
+        string localNuGetPath = "C:\\LocalNuGet")
     {
         return await CreateModularApplicationAsync(
             args: args,
             packageIds: packageIds,
-            nuGetRepositoryUrls: [localNuGetPath],
-            urls: [$"https://localhost:{httpsPort}", $"http://localhost:{httpPort}"],
-            configureApp: app =>
-            {
-                foreach (var packageId in packageIds)
-                {
-                    Console.WriteLine($"🚀 {packageId} loaded from NuGet: https://localhost:{httpsPort}/{packageId}");
-                }
-            });
+            nuGetRepositoryUrls: [localNuGetPath]);
     }
 }
