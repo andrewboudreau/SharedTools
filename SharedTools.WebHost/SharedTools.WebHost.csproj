@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>true</IsPackable>
+    <PackageId>SharedTools.WebHost</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>SharedTools Contributors</Authors>
+    <Description>Simplified hosting API for ASP.NET Core with built-in dynamic module loading from NuGet packages</Description>
+    <PackageTags>aspnetcore;hosting;modules;nuget;dynamic-loading</PackageTags>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <PackageProjectUrl>https://github.com/SharedTools/SharedTools</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/SharedTools/SharedTools</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SharedTools.Web\SharedTools.Web.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <PackageOutputPath>C:\LocalNuGet</PackageOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="ExampleUsage.cs" />
+    <Compile Remove="ExampleUsage.cs" />
+  </ItemGroup>
+
+</Project>

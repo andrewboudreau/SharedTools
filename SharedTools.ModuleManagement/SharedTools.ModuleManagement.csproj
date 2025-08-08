@@ -4,6 +4,7 @@
 		<TargetFramework>net10.0</TargetFramework>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
+		<OutputType>Exe</OutputType>
 
 		<!-- Razor compilation settings -->
 		<RazorCompileOnBuild>true</RazorCompileOnBuild>

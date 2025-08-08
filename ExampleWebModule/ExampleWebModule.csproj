@@ -3,6 +3,7 @@
 		<TargetFramework>net10.0</TargetFramework>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
+		<OutputType>Exe</OutputType>
 		<PackageOutputPath Condition="'$(Configuration)' == 'Debug'">C:\LocalNuGet</PackageOutputPath>
 		<!-- Ensure Razor views are compiled into the main assembly -->
 		<RazorCompileOnBuild>true</RazorCompileOnBuild>
