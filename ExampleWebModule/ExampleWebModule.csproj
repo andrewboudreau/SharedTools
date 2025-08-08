@@ -1,24 +1,27 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
 	<PropertyGroup>
+		<AssemblyName>SharedTools.ExampleWebModule</AssemblyName>
 		<TargetFramework>net10.0</TargetFramework>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
-		<OutputType>Exe</OutputType>
-		<PackageOutputPath Condition="'$(Configuration)' == 'Debug'">C:\LocalNuGet</PackageOutputPath>
+		
 		<!-- Ensure Razor views are compiled into the main assembly -->
 		<RazorCompileOnBuild>true</RazorCompileOnBuild>
 		<RazorCompileOnPublish>true</RazorCompileOnPublish>
 		<AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+
+		<!-- NuGet project settings -->
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<PackageOutputPath Condition="'$(Configuration)' == 'Debug'">C:\LocalNuGet</PackageOutputPath>
 	</PropertyGroup>
 
+	<!-- NuGet Package Properties -->
 	<PropertyGroup>
-		<!-- NuGet Package Properties -->
-		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-		<PackageId>ExampleWebModule</PackageId>
+		<PackageId>SharedTools.ExampleWebModule</PackageId>
 		<Version>$(VersionPrefix)</Version>
 		<Authors>Andrew Boudreau</Authors>
-		<Description>An example module for WebModules.</Description>
-		<PackageTags>example webmodule</PackageTags>
+		<Description>An example module for SharedTools.Web ApplicationPartModules.</Description>
+		<PackageTags>example,applicationpart, webmodule</PackageTags>
 		<RepositoryUrl>https://github.com/andrewboudreau/SharedTools</RepositoryUrl>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 	</PropertyGroup>
@@ -26,21 +29,14 @@
 	<ItemGroup>
 		<!-- Embed wwwroot files as resources in the assembly -->
 		<EmbeddedResource Include="wwwroot\**\*" />
-	</ItemGroup>
-	
-	<ItemGroup>
-		<!-- This tells the project that the entire ASP.NET Core runtime is provided by the host. -->
-		<!-- It gives you access to WebApplicationBuilder, IServiceCollection, Components, etc. -->
-		<!-- but ensures they are NOT packaged as dependencies. -->
+
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
 		<SupportedPlatform Include="browser" />
-	</ItemGroup>
-
-	<ItemGroup>
 		<PackageReference Include="Azure.Storage.Blobs" Version="12.26.0-beta.1" />
+
 		<ProjectReference Include="..\SharedTools.Web\SharedTools.Web.csproj">
 			<PrivateAssets>all</PrivateAssets>
 		</ProjectReference>
 	</ItemGroup>
-
+	
 </Project>

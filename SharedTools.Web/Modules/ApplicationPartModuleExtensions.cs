@@ -1,16 +1,17 @@
-using Microsoft.AspNetCore.Builder;
+﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
-using Microsoft.AspNetCore.Mvc.Razor.Compilation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging;
+
 using NuGet.Configuration;
 using NuGet.Frameworks;
 using NuGet.Packaging;
 using NuGet.Packaging.Core;
 using NuGet.Protocol.Core.Types;
 using NuGet.Versioning;
+
 using System.Reflection;
 
 namespace SharedTools.Web.Modules;
@@ -92,8 +93,7 @@ public static class ApplicationPartModuleExtensions
                 }
                 Directory.CreateDirectory(flatExtractionPath);
 
-                logger?.LogInformation("Extracting all package dependencies to flat directory: {Path}",
-                    flatExtractionPath);
+                logger?.LogInformation("Extracting all package dependencies to flat directory: {Path}", flatExtractionPath);
 
                 // Extract all packages to flat directory
                 await ExtractPackagesToFlatDirectory(
@@ -104,8 +104,7 @@ public static class ApplicationPartModuleExtensions
                 string mainAssemblyPath = Path.Combine(flatExtractionPath, $"{rootPackageIdentity.Id}.dll");
                 if (!File.Exists(mainAssemblyPath))
                 {
-                    logger?.LogError("Could not find main assembly {AssemblyPath} after extraction.",
-                        mainAssemblyPath);
+                    logger?.LogError("Could not find main assembly {AssemblyPath} after extraction.", mainAssemblyPath);
                     continue;
                 }
 
@@ -125,8 +124,7 @@ public static class ApplicationPartModuleExtensions
 
                 if (processedAssemblies.Contains(assembly.FullName!))
                 {
-                    logger?.LogInformation("Assembly {AssemblyName} was already processed. Skipping.",
-                        assembly.FullName);
+                    logger?.LogInformation("Assembly {AssemblyName} was already processed. Skipping.", assembly.FullName);
                     continue;
                 }
 
@@ -141,8 +139,7 @@ public static class ApplicationPartModuleExtensions
             }
             catch (Exception ex)
             {
-                logger?.LogError(ex, "An unhandled error occurred while processing package {PackageId}",
-                    packageId);
+                logger?.LogError(ex, "An unhandled error occurred while processing package {PackageId}", packageId);
             }
         }
 
@@ -150,8 +147,7 @@ public static class ApplicationPartModuleExtensions
         builder.Services.AddSingleton<IReadOnlyCollection<IApplicationPartModule>>(
             moduleRegistry.Modules.AsReadOnly());
 
-        logger?.LogInformation("Registered {ModuleCount} application part modules in total.",
-            moduleRegistry.Modules.Count);
+        logger?.LogInformation("Registered {ModuleCount} application part modules in total.", moduleRegistry.Modules.Count);
 
         return builder;
     }
@@ -167,8 +163,7 @@ public static class ApplicationPartModuleExtensions
         IWebHostEnvironment env,
         ModuleAssemblyLoadContext loadContext)
     {
-        logger?.LogInformation("Processing assembly {AssemblyName} for application part modules.",
-            assembly.FullName ?? "UnknownAssembly");
+        logger?.LogInformation("Processing assembly {AssemblyName} for application part modules.", assembly.FullName ?? "UnknownAssembly");
 
         // Find all types implementing IApplicationPartModule
         Type[] types;
@@ -188,8 +183,7 @@ public static class ApplicationPartModuleExtensions
             .Where(t => t != null && typeof(IApplicationPartModule).IsAssignableFrom(t) &&
                        !t.IsInterface && !t.IsAbstract);
 
-        logger?.LogInformation("Found {ModuleTypeCount} IApplicationPartModule implementations in {AssemblyName}",
-            moduleTypes.Count(), assembly.FullName ?? "UnknownAssembly");
+        logger?.LogInformation("Found {ModuleTypeCount} IApplicationPartModule implementations in {AssemblyName}", moduleTypes.Count(), assembly.FullName ?? "UnknownAssembly");
 
         foreach (var moduleType in moduleTypes)
         {
@@ -201,22 +195,17 @@ public static class ApplicationPartModuleExtensions
                 // Configure services
                 module.ConfigureServices(builder.Services);
 
-                // Create and add ModuleApplicationPart
-                var modulePart = new ModuleApplicationPart(assembly, module);
-                partManager.ApplicationParts.Add(modulePart);
-
-                // Also add as AssemblyPart for Razor Pages discovery
-                var assemblyPart = new AssemblyPart(assembly);
+                // Add AssemblyPart for Razor Pages discovery
                 if (!partManager.ApplicationParts.Any(p => p is AssemblyPart ap && ap.Assembly == assembly))
                 {
-                    partManager.ApplicationParts.Add(assemblyPart);
+                    partManager.ApplicationParts.Add(new AssemblyPart(assembly));
                 }
 
                 // Add CompiledRazorAssemblyPart for the main assembly (views are compiled into main assembly in .NET 6+)
                 var compiledRazorPart = new CompiledRazorAssemblyPart(assembly);
                 partManager.ApplicationParts.Add(compiledRazorPart);
-                logger?.LogInformation("Added CompiledRazorAssemblyPart for main assembly {AssemblyName} of module {ModuleName}", 
-                    assembly.GetName().Name, module.Name);               
+                logger?.LogInformation("Added CompiledRazorAssemblyPart for main assembly {AssemblyName} of module {ModuleName}",
+                    assembly.GetName().Name, module.Name);
 
                 // Let the module configure additional application parts if needed
                 module.ConfigureApplicationParts(partManager);
@@ -234,8 +223,8 @@ public static class ApplicationPartModuleExtensions
             catch (Exception ex)
             {
                 logger?.LogError(ex,
-                    "Failed to create instance or configure module {ModuleTypeName} from assembly {AssemblyName}",
-                    moduleType.FullName, assembly.FullName ?? "UnknownAssembly");
+                    "Failed to create instance or configure module {ModuleTypeName} from assembly {AssemblyName}\r\n{Error}",
+                    moduleType.FullName, assembly.FullName ?? "UnknownAssembly", ex.Message);
             }
         }
 
@@ -254,8 +243,7 @@ public static class ApplicationPartModuleExtensions
                 crap.Assembly == assembly))
             {
                 partManager.ApplicationParts.Add(new CompiledRazorAssemblyPart(assembly));
-                logger?.LogTrace("Added CompiledRazorAssemblyPart for {AssemblyName}",
-                    assembly.FullName ?? "UnknownAssembly");
+                logger?.LogTrace("Added CompiledRazorAssemblyPart for {AssemblyName}", assembly.FullName ?? "UnknownAssembly");
             }
         }
     }
@@ -268,15 +256,20 @@ public static class ApplicationPartModuleExtensions
     {
         // Check for embedded wwwroot resources
         var manifestResourceNames = assembly.GetManifestResourceNames();
-        if (manifestResourceNames.Any(r => r.StartsWith("wwwroot", StringComparison.OrdinalIgnoreCase)))
-        {
-            var embeddedProvider = new ManifestEmbeddedFileProvider(assembly, "wwwroot");
-            moduleRegistry.StaticFileProviders.Add((moduleName, embeddedProvider));
-            logger?.LogInformation(
-                "Registered ManifestEmbeddedFileProvider for module {ModuleName} from assembly {AssemblyName}",
-                moduleName, assembly.FullName ?? "UnknownAssembly");
-        }
+        logger?.LogInformation("We found {ResourceCount} manifest resources in assembly {AssemblyName}",
+            manifestResourceNames.Length, assembly.FullName ?? "UnknownAssembly");
 
+        if (manifestResourceNames.Any(r => r.Contains("wwwroot.", StringComparison.OrdinalIgnoreCase)))
+        {
+            // The namespace prefix for embedded resources is the assembly name + ".wwwroot"
+            var assemblyName = assembly.GetName().Name ?? "Unknown";
+            var embeddedProvider = new EmbeddedFileProvider(assembly, $"{assemblyName}.wwwroot");
+            moduleRegistry.StaticFileProviders.Add((moduleName, embeddedProvider));
+
+            logger?.LogInformation(
+                "Registered EmbeddedFileProvider for module {ModuleName} from assembly {AssemblyName} with base namespace {BaseNamespace}",
+                moduleName, assembly.FullName ?? "UnknownAssembly", $"{assemblyName}.wwwroot");
+        }
     }
 
     /// <summary>
@@ -291,19 +284,26 @@ public static class ApplicationPartModuleExtensions
         var moduleRegistry = app.Services.GetService<ModuleRegistry>();
         if (moduleRegistry != null)
         {
-            logger?.LogInformation("Configuring static files for {ProviderCount} providers",
-                moduleRegistry.StaticFileProviders.Count);
+            logger?.LogInformation("Configuring static files for {ProviderCount} providers", moduleRegistry.StaticFileProviders.Count);
 
             foreach (var (moduleName, fileProvider) in moduleRegistry.StaticFileProviders)
             {
                 var requestPath = $"/_content/{moduleName}";
+
+                // Validate module name to prevent path traversal
+                if (!IsValidModuleName(moduleName))
+                {
+                    logger?.LogError("Skipping static file configuration for module with invalid name: {ModuleName}", moduleName);
+                    continue;
+                }
+
                 app.UseStaticFiles(new StaticFileOptions
                 {
                     FileProvider = fileProvider,
                     RequestPath = requestPath
                 });
-                logger?.LogInformation("Configured static files for module {ModuleName} at path {RequestPath}",
-                    moduleName, requestPath);
+
+                logger?.LogInformation("Configured static files for module {ModuleName} at path {RequestPath}", moduleName, requestPath);
             }
         }
 
@@ -326,6 +326,27 @@ public static class ApplicationPartModuleExtensions
         }
 
         return app;
+    }
+
+    /// <summary>
+    /// Validates that a module name is safe for use in URL paths.
+    /// Prevents directory traversal and other path-based attacks.
+    /// </summary>
+    private static bool IsValidModuleName(string moduleName)
+    {
+        if (string.IsNullOrWhiteSpace(moduleName))
+            return false;
+
+        // Check for path traversal attempts
+        if (moduleName.Contains("..") || moduleName.Contains('/') || moduleName.Contains('\\'))
+            return false;
+
+        // Check for potentially dangerous characters
+        var invalidChars = Path.GetInvalidFileNameChars().Concat(['<', '>', ':', '"', '|', '?', '*']);
+        if (moduleName.Any(c => invalidChars.Contains(c)))
+            return false;
+
+        return true;
     }
 
     #region Helper Methods
@@ -591,7 +612,7 @@ public static class ApplicationPartModuleExtensions
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Error] Failed to create temporary logger: {ex.Message}");
+            Console.WriteLine("[Error] Failed to create temporary logger: {ErrorMessage}", ex.Message);
             return null;
         }
     }
@@ -615,7 +636,7 @@ public static class ApplicationPartModuleExtensions
 
             if (discoveredSources.Any())
             {
-                logger?.LogInformation($"Discovered {discoveredSources.Count()} sources from nuget.config.");
+                logger?.LogInformation("Discovered {DiscoveredSourcesCount} sources from nuget.config.", discoveredSources.Count());
                 sources.AddRange(discoveredSources);
             }
             else

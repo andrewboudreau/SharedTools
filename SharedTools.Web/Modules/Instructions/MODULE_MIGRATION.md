@@ -142,8 +142,8 @@ public class YourModule : IApplicationPartModule
         });
         services.AddSingleton<IYourBlobStorage, YourBlobStorage>();
         
-        // If using Razor Pages
-        services.AddRazorPages();
+        // Note: Razor Pages support is typically added by the host application
+        // Only add it here if your module requires specific Razor Pages configuration
     }
 
     public void Configure(WebApplication app)

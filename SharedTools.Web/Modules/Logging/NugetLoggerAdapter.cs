@@ -8,16 +8,16 @@ namespace SharedTools.Web.Modules.Logging;
 /// </summary>
 public class NugetLoggerAdapter : NuGet.Common.ILogger
 {
-    private readonly Microsoft.Extensions.Logging.ILogger MicrosoftLogger;
+    private readonly Microsoft.Extensions.Logging.ILogger microsoftLogger;
 
     public NugetLoggerAdapter(Microsoft.Extensions.Logging.ILogger logger)
     {
-        MicrosoftLogger = logger;
+        microsoftLogger = logger;
     }
 
     public void Log(LogLevel level, string data)
     {
-        MicrosoftLogger.Log(
+        microsoftLogger.Log(
             TranslateLevel(level),
             0, // EventId
             data, // State
@@ -28,7 +28,7 @@ public class NugetLoggerAdapter : NuGet.Common.ILogger
 
     public void Log(ILogMessage message)
     {
-        MicrosoftLogger.Log(
+        microsoftLogger.Log(
             TranslateLevel(message.Level),
             0, // EventId
             message, // State

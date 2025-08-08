@@ -37,14 +37,14 @@ public class ExampleApplicationPartModule : IApplicationPartModule
 
     public void ConfigureApplicationParts(ApplicationPartManager applicationPartManager)
     {
-        // The module's assembly is already added as a ModuleApplicationPart
+        // The module's assembly is already added as an ApplicationPart
         // Here we can add additional parts if needed, such as:
         // - Additional assemblies containing controllers
         // - Custom feature providers
         // - Related assemblies with compiled Razor views
 
         // For this example, we don't need to add anything extra
-        // The ModuleApplicationPart already handles our assembly
+        // The ApplicationPart already handles our assembly
     }
 
     public void Configure(WebApplication app)
