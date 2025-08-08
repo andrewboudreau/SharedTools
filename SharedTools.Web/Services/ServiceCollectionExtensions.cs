@@ -1,7 +1,4 @@
-using Azure.Storage.Blobs;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using System.ComponentModel.DataAnnotations;
 
 namespace SharedTools.Web.Services;
 
@@ -53,7 +50,6 @@ public static class ServiceCollectionExtensions
     /// <returns>True if the keyed service is registered, false otherwise</returns>
     public static bool IsKeyedRegistered<T>(this IServiceCollection services, object serviceKey)
     {
-        return services.Any(s => s.ServiceType == typeof(T) && 
-                                Equals(s.ServiceKey, serviceKey));
+        return services.Any(s => s.ServiceType == typeof(T) &&  Equals(s.ServiceKey, serviceKey));
     }
 }
