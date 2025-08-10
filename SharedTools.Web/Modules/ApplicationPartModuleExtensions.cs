@@ -390,51 +390,6 @@ public static class ApplicationPartModuleExtensions
         return newRegistry;
     }
 
-    private static async Task ExtractPackagesToFlatDirectory(
-        IEnumerable<PackageIdentity> packages,
-        string flatExtractionPath,
-        NuGetFramework targetFramework,
-        IEnumerable<SourceRepository> repositories,
-        ISettings nuGetSettings,
-        SourceCacheContext cacheContext,
-        ILogger? logger)
-    {
-        foreach (var packageIdentity in packages)
-        {
-            var (downloadResult, _) = await FindAndDownloadPackageAsync(
-                packageIdentity.Id, packageIdentity.Version.ToNormalizedString(),
-                repositories, nuGetSettings, cacheContext, logger);
-
-            if (downloadResult == null)
-            {
-                logger?.LogWarning("Failed to download dependency package {PackageId}", packageIdentity);
-                continue;
-            }
-
-            using (var reader = new PackageArchiveReader(downloadResult.PackageStream))
-            {
-                var libItems = await reader.GetLibItemsAsync(CancellationToken.None);
-                var nearestFramework = NuGetFrameworkUtility.GetNearest(libItems, targetFramework,
-                    f => f.TargetFramework);
-
-                if (nearestFramework != null)
-                {
-                    foreach (var item in nearestFramework.Items)
-                    {
-                        if (item.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
-                        {
-                            reader.ExtractFile(item, Path.Combine(flatExtractionPath,
-                                Path.GetFileName(item)), NuGetLogger);
-                        }
-                    }
-                }
-
-            }
-
-            downloadResult.Dispose();
-        }
-    }
-
 
     // The remaining helper methods (ResolveDependencyGraphAsync, FindAndDownloadPackageAsync, 
     // CreateSourceRepositories, CreateTemporaryLogger) remain the same as in WebModuleExtensions
