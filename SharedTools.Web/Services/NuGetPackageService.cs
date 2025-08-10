@@ -18,7 +18,7 @@ public class NuGetPackageService
 {
     private static NuGet.Common.ILogger NuGetLogger { get; set; } = NullLogger.Instance;
     private readonly ILogger<NuGetPackageService>? _logger;
-    public NuGetPackageService(ILogger? logger = null)
+    public NuGetPackageService(Microsoft.Extensions.Logging.ILogger? logger = null)
     {
         _logger = logger as ILogger<NuGetPackageService>;
         if (logger != null)
