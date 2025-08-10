@@ -20,7 +20,8 @@ namespace SharedTools.Web.Modules;
 /// </summary>
 public static class ApplicationPartModuleExtensions
 {
-    private static NuGet.Common.ILogger NuGetLogger { get; set; } = NuGet.Common.NullLogger.Instance;
+    private static NuGetFramework DefaultTargetFramework { get; } = new NuGetFramework(".NETCoreApp", new Version(10, 0));
+
     /// <summary>
     /// Discovers modules from NuGet packages, resolves their dependencies, downloads them,
     /// and integrates them into the application using ApplicationParts.
@@ -54,7 +55,7 @@ public static class ApplicationPartModuleExtensions
         var nuGetCacheContext = new SourceCacheContext { NoCache = true };
         var nuGetSettings = Settings.LoadDefaultSettings(root: null);
 
-        var targetFramework = new NuGetFramework(".NETCoreApp", new Version(10, 0));
+        var targetFramework = DefaultTargetFramework;
         logger?.LogInformation("Resolving dependencies for target framework: {Framework}", targetFramework.DotNetFrameworkName);
 
         // Create NuGet service
@@ -186,6 +187,7 @@ public static class ApplicationPartModuleExtensions
 
         return builder;
     }
+    
     private static void ProcessAssemblyForModules(AssemblyProcessingContext context)
     {
         context.Logger?.LogInformation("Processing assembly {AssemblyName} for application part modules.",
@@ -274,6 +276,7 @@ public static class ApplicationPartModuleExtensions
             }
         }
     }
+    
     private static void RegisterModuleStaticAssets(
         Assembly assembly,
         string moduleName,
