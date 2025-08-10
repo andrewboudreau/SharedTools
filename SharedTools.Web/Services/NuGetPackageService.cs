@@ -204,7 +204,7 @@ public class NuGetPackageService
     /// <summary>
     /// Extracts packages to a flat directory structure for assembly loading.
     /// </summary>
-    public async Task ExtractPackagesToFlatDirectory(PackageExtractionContext context)
+    public async Task ExtractPackagesToFlatDirectory(SharedTools.Web.Modules.PackageExtractionContext context)
     {
         foreach (var packageIdentity in context.Packages)
         {
