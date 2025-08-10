@@ -22,7 +22,6 @@ namespace SharedTools.Web.Modules;
 public static class ApplicationPartModuleExtensions
 {
     private static NuGet.Common.ILogger NuGetLogger { get; set; } = NuGet.Common.NullLogger.Instance;
-
     /// <summary>
     /// Discovers modules from NuGet packages, resolves their dependencies, downloads them,
     /// and integrates them into the application using ApplicationParts.
@@ -52,21 +51,43 @@ public static class ApplicationPartModuleExtensions
         Directory.CreateDirectory(tempCachePath);
         logger?.LogInformation("Using temporary cache directory: {BaseTempPath}", tempCachePath);
 
-        var repositories = CreateSourceRepositories(nuGetRepositoryUrls, logger);
+        var repositories = NuGetPackageService.CreateSourceRepositories(nuGetRepositoryUrls, logger);
         var nuGetCacheContext = new SourceCacheContext { NoCache = true };
         var nuGetSettings = Settings.LoadDefaultSettings(root: null);
 
         var targetFramework = new NuGetFramework(".NETCoreApp", new Version(10, 0));
         logger?.LogInformation("Resolving dependencies for target framework: {Framework}", targetFramework.DotNetFrameworkName);
 
+        // Create NuGet service
+        var nugetService = new NuGetPackageService(logger);
+
+        // Create module loading context
+        var loadingContext = new ModuleLoadingContext
+        {
+            Environment = env,
+            PartManager = partManager,
+            ModuleRegistry = moduleRegistry,
+            Logger = logger,
+            TempCachePath = tempCachePath
+        };
+
         foreach (var packageId in packageIds)
         {
             logger?.LogInformation("--- Processing root package: {PackageId} ---", packageId);
             try
             {
-                var allPackagesToInstall = await ResolveDependencyGraphAsync(
-                    packageId, specificPackageVersion, targetFramework,
-                    repositories, nuGetCacheContext, logger);
+                // Create dependency resolution context
+                var resolutionContext = new DependencyResolutionContext
+                {
+                    PackageId = packageId,
+                    Version = specificPackageVersion,
+                    Framework = targetFramework,
+                    Repositories = repositories,
+                    CacheContext = nuGetCacheContext,
+                    Logger = logger
+                };
+
+                var allPackagesToInstall = await nugetService.ResolveDependencyGraphAsync(resolutionContext);
 
                 if (allPackagesToInstall == null || !allPackagesToInstall.Any())
                 {
@@ -88,10 +109,20 @@ public static class ApplicationPartModuleExtensions
 
                 logger?.LogInformation("Extracting all package dependencies to flat directory: {Path}", flatExtractionPath);
 
+                // Create extraction context
+                var extractionContext = new PackageExtractionContext
+                {
+                    Packages = allPackagesToInstall,
+                    FlatExtractionPath = flatExtractionPath,
+                    TargetFramework = targetFramework,
+                    Repositories = repositories,
+                    Settings = nuGetSettings,
+                    CacheContext = nuGetCacheContext,
+                    Logger = logger
+                };
+
                 // Extract all packages to flat directory
-                await ExtractPackagesToFlatDirectory(
-                    allPackagesToInstall, flatExtractionPath, targetFramework,
-                    repositories, nuGetSettings, nuGetCacheContext, logger);
+                await nugetService.ExtractPackagesToFlatDirectory(extractionContext);
 
                 // Load the main assembly
                 string mainAssemblyPath = Path.Combine(flatExtractionPath, $"{rootPackageIdentity.Id}.dll");
@@ -121,9 +152,21 @@ public static class ApplicationPartModuleExtensions
                     continue;
                 }
 
-                ProcessAssemblyForModules(
-                    assembly, rootPackageIdentity.Id, flatExtractionPath,
-                    builder, partManager, moduleRegistry, logger, env, loadContext);
+                // Create assembly processing context
+                var processingContext = new AssemblyProcessingContext
+                {
+                    Assembly = assembly,
+                    ModuleName = rootPackageIdentity.Id,
+                    ExtractionPath = flatExtractionPath,
+                    Builder = builder,
+                    PartManager = partManager,
+                    ModuleRegistry = moduleRegistry,
+                    Environment = env,
+                    LoadContext = loadContext,
+                    Logger = logger
+                };
+
+                ProcessAssemblyForModules(processingContext);
 
                 // Store the load context to prevent it from being garbage collected
                 moduleRegistry.AssemblyLoadContexts.Add(loadContext);
@@ -144,7 +187,6 @@ public static class ApplicationPartModuleExtensions
 
         return builder;
     }
-
     private static void ProcessAssemblyForModules(
         Assembly assembly,
         string moduleName,
