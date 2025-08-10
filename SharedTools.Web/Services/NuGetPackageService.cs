@@ -18,16 +18,14 @@ public class NuGetPackageService
 {
     private static NuGet.Common.ILogger NuGetLogger { get; set; } = NullLogger.Instance;
     private readonly ILogger<NuGetPackageService>? _logger;
-
-    public NuGetPackageService(ILogger<NuGetPackageService>? logger = null)
+    public NuGetPackageService(ILogger? logger = null)
     {
-        _logger = logger;
+        _logger = logger as ILogger<NuGetPackageService>;
         if (logger != null)
         {
             NuGetLogger = new NugetLoggerAdapter(logger);
         }
     }
-
     /// <summary>
     /// Resolves the dependency graph for a package and returns all required packages.
     /// </summary>
