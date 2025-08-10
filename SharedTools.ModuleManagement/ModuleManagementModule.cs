@@ -10,21 +10,21 @@ namespace SharedTools.ModuleManagement;
 public class ModuleManagementModule : IApplicationPartModule
 {
     public string Name => "SharedTools.ModuleManagement";
-    
+
     public void ConfigureServices(IServiceCollection services)
     {
-        services.AddSingleton<ModuleRegistry>();
+        services.AddSingleton<SharedTools.ModuleManagement.Services.ModuleRegistry>();
         services.AddRazorPages();
     }
 
     public void Configure(WebApplication app)
     {
         app.MapRazorPages();
-        
+
         // Get the registry and discover all loaded modules
         var registry = app.Services.GetRequiredService<ModuleRegistry>();
         var modules = app.Services.GetService<IReadOnlyCollection<IApplicationPartModule>>();
-        
+
         // Register this module
         registry.RegisterModule(new ModuleInfo
         {
@@ -34,7 +34,7 @@ public class ModuleManagementModule : IApplicationPartModule
             Description = "Web-based management interface for viewing and managing loaded modules",
             EntryPoint = "/SharedTools.ModuleManagement"
         });
-        
+
         // Register all other loaded modules
         if (modules != null)
         {
@@ -42,7 +42,7 @@ public class ModuleManagementModule : IApplicationPartModule
             {
                 var assembly = module.GetType().Assembly;
                 var assemblyName = assembly.GetName();
-                
+
                 var moduleInfo = new ModuleInfo
                 {
                     Name = module.Name,
@@ -51,7 +51,7 @@ public class ModuleManagementModule : IApplicationPartModule
                     Description = $"Module loaded from {assemblyName.Name}",
                     EntryPoint = $"/{module.Name}/"
                 };
-                
+
                 registry.RegisterModule(moduleInfo);
             }
         }
