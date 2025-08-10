@@ -152,7 +152,8 @@ public class NuGetPackageService
     /// Finds and downloads a specific package version.
     /// </summary>
     public async Task<(DownloadResourceResult? downloadResult, PackageIdentity? packageIdentity)> FindAndDownloadPackageAsync(
-    PackageDownloadContext context)
+
+        SharedTools.Web.Modules.PackageDownloadContext context)
     {
         PackageIdentity? packageIdentity = null;
         DownloadResourceResult? downloadResult = null;
