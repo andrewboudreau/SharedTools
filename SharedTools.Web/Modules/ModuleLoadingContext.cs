@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging;
 using NuGet.Configuration;
 using NuGet.Frameworks;
