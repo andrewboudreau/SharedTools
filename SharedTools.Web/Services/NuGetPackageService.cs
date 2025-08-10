@@ -252,7 +252,7 @@ public class NuGetPackageService
     /// <summary>
     /// Creates source repositories from configuration or default sources.
     /// </summary>
-    public static List<SourceRepository> CreateSourceRepositories(IEnumerable<string>? repositoryUrls, ILogger? logger)
+    public static List<SourceRepository> CreateSourceRepositories(IEnumerable<string>? repositoryUrls, Microsoft.Extensions.Logging.ILogger? logger)
     {
         var sources = new List<PackageSource>();
         ISettings settings;
