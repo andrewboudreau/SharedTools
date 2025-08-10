@@ -1,9 +1,12 @@
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.Extensions.Logging;
 using NuGet.Configuration;
 using NuGet.Frameworks;
+using NuGet.Packaging.Core;
 using NuGet.Protocol.Core.Types;
+using System.Reflection;
 
 namespace SharedTools.Web.Modules;
 
@@ -14,7 +17,7 @@ public class ModuleLoadingContext
 {
     public required IWebHostEnvironment Environment { get; init; }
     public required ApplicationPartManager PartManager { get; init; }
-    public required ApplicationPartModuleExtensions.ModuleRegistry ModuleRegistry { get; init; }
+    public required ModuleRegistry ModuleRegistry { get; init; }
     public ILogger? Logger { get; init; }
     public string TempCachePath { get; init; } = Path.Combine(Path.GetTempPath(), "SharedTools_ApplicationPartModulesCache");
 }
@@ -29,10 +32,20 @@ public class AssemblyProcessingContext
     public required string ExtractionPath { get; init; }
     public required WebApplicationBuilder Builder { get; init; }
     public required ApplicationPartManager PartManager { get; init; }
-    public required ApplicationPartModuleExtensions.ModuleRegistry ModuleRegistry { get; init; }
+    public required ModuleRegistry ModuleRegistry { get; init; }
     public required IWebHostEnvironment Environment { get; init; }
     public required ModuleAssemblyLoadContext LoadContext { get; init; }
     public ILogger? Logger { get; init; }
+}
+
+/// <summary>
+/// Registry for tracking loaded modules and their resources.
+/// </summary>
+public class ModuleRegistry
+{
+    public List<IApplicationPartModule> Modules { get; } = [];
+    public List<(string ModuleName, IFileProvider FileProvider)> StaticFileProviders { get; } = [];
+    public List<ModuleAssemblyLoadContext> AssemblyLoadContexts { get; } = [];
 }
 
 /// <summary>
