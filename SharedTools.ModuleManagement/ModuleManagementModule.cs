@@ -22,7 +22,7 @@ public class ModuleManagementModule : IApplicationPartModule
         app.MapRazorPages();
 
         // Get the registry and discover all loaded modules
-        var registry = app.Services.GetRequiredService<ModuleRegistry>();
+        var registry = app.Services.GetRequiredService<SharedTools.ModuleManagement.Services.ModuleRegistry>();
         var modules = app.Services.GetService<IReadOnlyCollection<IApplicationPartModule>>();
 
         // Register this module
