@@ -390,61 +390,6 @@ public static class ApplicationPartModuleExtensions
         return newRegistry;
     }
 
-    private static async Task<(DownloadResourceResult? downloadResult, PackageIdentity? packageIdentity)>
-        FindAndDownloadPackageAsync(
-            string packageId,
-            string? specificVersion,
-            IEnumerable<SourceRepository> repositories,
-            ISettings nugetSettings,
-            SourceCacheContext cacheContext,
-            ILogger? logger)
-    {
-        PackageIdentity? packageIdentity = null;
-        DownloadResourceResult? downloadResult = null;
-
-        foreach (var repo in repositories)
-        {
-            logger?.LogTrace("Searching for {PackageId} in {Repository}", packageId, repo.PackageSource.Name);
-            var findResource = await repo.GetResourceAsync<FindPackageByIdResource>();
-            if (findResource == null) continue;
-
-            var allVersions = await findResource.GetAllVersionsAsync(packageId, cacheContext,
-                NuGetLogger, CancellationToken.None);
-            if (allVersions == null || !allVersions.Any()) continue;
-
-            NuGetVersion? versionToDownload = null;
-            if (!string.IsNullOrEmpty(specificVersion) && NuGetVersion.TryParse(specificVersion, out var parsedVersion))
-            {
-                versionToDownload = allVersions.FirstOrDefault(v => v.Equals(parsedVersion));
-            }
-            versionToDownload ??= allVersions.Where(v => !v.IsPrerelease).Max() ?? allVersions.Max();
-
-            if (versionToDownload == null) continue;
-
-            packageIdentity = new PackageIdentity(packageId, versionToDownload);
-            var downloadResource = await repo.GetResourceAsync<DownloadResource>();
-            if (downloadResource == null) continue;
-
-            var globalPackagesFolder = SettingsUtility.GetGlobalPackagesFolder(nugetSettings);
-            var downloadContext = new PackageDownloadContext(cacheContext, Path.GetTempPath(),
-                cacheContext.DirectDownload);
-
-            logger?.LogTrace("Downloading {PackageId} version {PackageVersion} from {Repository}",
-                packageId, versionToDownload, repo.PackageSource.Name);
-            downloadResult = await downloadResource.GetDownloadResourceResultAsync(packageIdentity,
-                downloadContext, globalPackagesFolder, NuGetLogger, CancellationToken.None);
-
-            if (downloadResult?.Status == DownloadResourceResultStatus.Available)
-            {
-                logger?.LogTrace("Successfully downloaded package {PackageId}.", packageId);
-                return (downloadResult, packageIdentity);
-            }
-        }
-
-        logger?.LogError("Failed to find or download package {PackageId} from any repository.", packageId);
-        return (null, null);
-    }
-
     private static ILogger? CreateTemporaryLogger()
     {
         try
