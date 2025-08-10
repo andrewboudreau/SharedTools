@@ -23,13 +23,6 @@ public static class ApplicationPartModuleExtensions
 {
     private static NuGet.Common.ILogger NuGetLogger { get; set; } = NuGet.Common.NullLogger.Instance;
 
-    internal class ModuleRegistry
-    {
-        public List<IApplicationPartModule> Modules { get; } = [];
-        public List<(string ModuleName, IFileProvider FileProvider)> StaticFileProviders { get; } = [];
-        public List<ModuleAssemblyLoadContext> AssemblyLoadContexts { get; } = [];
-    }
-
     /// <summary>
     /// Discovers modules from NuGet packages, resolves their dependencies, downloads them,
     /// and integrates them into the application using ApplicationParts.
