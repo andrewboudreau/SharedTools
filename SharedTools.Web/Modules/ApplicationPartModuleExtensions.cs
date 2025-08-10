@@ -186,38 +186,31 @@ public static class ApplicationPartModuleExtensions
 
         return builder;
     }
-    private static void ProcessAssemblyForModules(
-        Assembly assembly,
-        string moduleName,
-        string extractionPath,
-        WebApplicationBuilder builder,
-        ApplicationPartManager partManager,
-        ModuleRegistry moduleRegistry,
-        ILogger? logger,
-        IWebHostEnvironment env,
-        ModuleAssemblyLoadContext loadContext)
+    private static void ProcessAssemblyForModules(AssemblyProcessingContext context)
     {
-        logger?.LogInformation("Processing assembly {AssemblyName} for application part modules.", assembly.FullName ?? "UnknownAssembly");
+        context.Logger?.LogInformation("Processing assembly {AssemblyName} for application part modules.",
+            context.Assembly.FullName ?? "UnknownAssembly");
 
         // Find all types implementing IApplicationPartModule
         Type[] types;
         try
         {
-            types = assembly.GetTypes();
+            types = context.Assembly.GetTypes();
         }
         catch (ReflectionTypeLoadException ex)
         {
             // Some types couldn't be loaded, but we can still work with the ones that did load
             types = ex.Types.Where(t => t != null).ToArray()!;
-            logger?.LogWarning("Some types could not be loaded from {AssemblyName}. Continuing with {LoadedTypeCount} types.",
-                assembly.FullName ?? "UnknownAssembly", types.Length);
+            context.Logger?.LogWarning("Some types could not be loaded from {AssemblyName}. Continuing with {LoadedTypeCount} types.",
+                context.Assembly.FullName ?? "UnknownAssembly", types.Length);
         }
 
         var moduleTypes = types
             .Where(t => t != null && typeof(IApplicationPartModule).IsAssignableFrom(t) &&
                        !t.IsInterface && !t.IsAbstract);
 
-        logger?.LogInformation("Found {ModuleTypeCount} IApplicationPartModule implementations in {AssemblyName}", moduleTypes.Count(), assembly.FullName ?? "UnknownAssembly");
+        context.Logger?.LogInformation("Found {ModuleTypeCount} IApplicationPartModule implementations in {AssemblyName}",
+            moduleTypes.Count(), context.Assembly.FullName ?? "UnknownAssembly");
 
         foreach (var moduleType in moduleTypes)
         {
@@ -227,38 +220,38 @@ public static class ApplicationPartModuleExtensions
                 var module = (IApplicationPartModule)Activator.CreateInstance(moduleType)!;
 
                 // Configure services
-                module.ConfigureServices(builder.Services);
+                module.ConfigureServices(context.Builder.Services);
 
                 // Add AssemblyPart for Razor Pages discovery
-                if (!partManager.ApplicationParts.Any(p => p is AssemblyPart ap && ap.Assembly == assembly))
+                if (!context.PartManager.ApplicationParts.Any(p => p is AssemblyPart ap && ap.Assembly == context.Assembly))
                 {
-                    partManager.ApplicationParts.Add(new AssemblyPart(assembly));
+                    context.PartManager.ApplicationParts.Add(new AssemblyPart(context.Assembly));
                 }
 
                 // Add CompiledRazorAssemblyPart for the main assembly (views are compiled into main assembly in .NET 6+)
-                var compiledRazorPart = new CompiledRazorAssemblyPart(assembly);
-                partManager.ApplicationParts.Add(compiledRazorPart);
-                logger?.LogInformation("Added CompiledRazorAssemblyPart for main assembly {AssemblyName} of module {ModuleName}",
-                    assembly.GetName().Name, module.Name);
+                var compiledRazorPart = new CompiledRazorAssemblyPart(context.Assembly);
+                context.PartManager.ApplicationParts.Add(compiledRazorPart);
+                context.Logger?.LogInformation("Added CompiledRazorAssemblyPart for main assembly {AssemblyName} of module {ModuleName}",
+                    context.Assembly.GetName().Name, module.Name);
 
                 // Let the module configure additional application parts if needed
-                module.ConfigureApplicationParts(partManager);
+                module.ConfigureApplicationParts(context.PartManager);
 
                 // Register the module
-                moduleRegistry.Modules.Add(module);
+                context.ModuleRegistry.Modules.Add(module);
 
-                logger?.LogInformation(
+                context.Logger?.LogInformation(
                     "Initialized module {ModuleTypeName} from {AssemblyName} as ApplicationPart",
-                    moduleType.FullName, assembly.FullName ?? "UnknownAssembly");
+                    moduleType.FullName, context.Assembly.FullName ?? "UnknownAssembly");
 
                 // Handle static assets
-                RegisterModuleStaticAssets(assembly, module.Name, moduleRegistry, logger);
+                RegisterModuleStaticAssets(context.Assembly, module.Name, context.ModuleRegistry, context.Logger);
             }
             catch (Exception ex)
             {
-                logger?.LogError(ex,
+                context.Logger?.LogError(ex,
                     "Failed to create instance or configure module {ModuleTypeName} from assembly {AssemblyName}\r\n{Error}",
-                    moduleType.FullName, assembly.FullName ?? "UnknownAssembly", ex.Message);
+                    moduleType.FullName, context.Assembly.FullName ?? "UnknownAssembly", ex.Message);
             }
         }
 
@@ -266,22 +259,21 @@ public static class ApplicationPartModuleExtensions
         if (!moduleTypes.Any())
         {
             // Add AssemblyPart for Razor Pages discovery
-            if (!partManager.ApplicationParts.Any(part => part is AssemblyPart ap && ap.Assembly == assembly))
+            if (!context.PartManager.ApplicationParts.Any(part => part is AssemblyPart ap && ap.Assembly == context.Assembly))
             {
-                partManager.ApplicationParts.Add(new AssemblyPart(assembly));
-                logger?.LogTrace("Added AssemblyPart for {AssemblyName}", assembly.FullName ?? "UnknownAssembly");
+                context.PartManager.ApplicationParts.Add(new AssemblyPart(context.Assembly));
+                context.Logger?.LogTrace("Added AssemblyPart for {AssemblyName}", context.Assembly.FullName ?? "UnknownAssembly");
             }
 
             // Add CompiledRazorAssemblyPart for compiled Razor views/pages
-            if (!partManager.ApplicationParts.Any(part => part is CompiledRazorAssemblyPart crap &&
-                crap.Assembly == assembly))
+            if (!context.PartManager.ApplicationParts.Any(part => part is CompiledRazorAssemblyPart crap &&
+                crap.Assembly == context.Assembly))
             {
-                partManager.ApplicationParts.Add(new CompiledRazorAssemblyPart(assembly));
-                logger?.LogTrace("Added CompiledRazorAssemblyPart for {AssemblyName}", assembly.FullName ?? "UnknownAssembly");
+                context.PartManager.ApplicationParts.Add(new CompiledRazorAssemblyPart(context.Assembly));
+                context.Logger?.LogTrace("Added CompiledRazorAssemblyPart for {AssemblyName}", context.Assembly.FullName ?? "UnknownAssembly");
             }
         }
     }
-
     private static void RegisterModuleStaticAssets(
         Assembly assembly,
         string moduleName,
