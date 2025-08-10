@@ -208,7 +208,7 @@ public class NuGetPackageService
     {
         foreach (var packageIdentity in context.Packages)
         {
-            var downloadContext = new PackageDownloadContext
+            var downloadContext = new SharedTools.Web.Modules.PackageDownloadContext
             {
                 PackageId = packageIdentity.Id,
                 SpecificVersion = packageIdentity.Version.ToNormalizedString(),
