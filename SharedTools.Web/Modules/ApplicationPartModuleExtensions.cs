@@ -415,40 +415,5 @@ public static class ApplicationPartModuleExtensions
         }
     }
 
-    private static List<SourceRepository> CreateSourceRepositories(IEnumerable<string>? repositoryUrls, ILogger? logger)
-    {
-        var sources = new List<PackageSource>();
-        ISettings settings;
-
-        if (repositoryUrls != null && repositoryUrls.Any())
-        {
-            logger?.LogInformation("Using explicit repository URLs provided in configuration.");
-            sources.AddRange(repositoryUrls.Select(url => new PackageSource(url)));
-            settings = Settings.LoadDefaultSettings(root: null);
-        }
-        else
-        {
-            logger?.LogInformation("No explicit URLs provided. Attempting to discover sources from nuget.config files...");
-            settings = Settings.LoadDefaultSettings(root: Directory.GetCurrentDirectory());
-            var discoveredSources = new PackageSourceProvider(settings).LoadPackageSources();
-
-            if (discoveredSources.Any())
-            {
-                logger?.LogInformation("Discovered {DiscoveredSourcesCount} sources from nuget.config.", discoveredSources.Count());
-                sources.AddRange(discoveredSources);
-            }
-            else
-            {
-                logger?.LogInformation("No sources found in nuget.config. Falling back to default nuget.org source.");
-                sources.Add(new PackageSource("https://api.nuget.org/v3/index.json", "nuget.org"));
-            }
-        }
-
-        var sourceProvider = new PackageSourceProvider(settings, sources);
-        var sourceRepoProvider = new SourceRepositoryProvider(sourceProvider, Repository.Provider.GetCoreV3());
-
-        return [.. sourceRepoProvider.GetRepositories()];
-    }
-
     #endregion
 }
