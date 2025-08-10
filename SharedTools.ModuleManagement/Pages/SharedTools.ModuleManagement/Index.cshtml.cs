@@ -5,18 +5,18 @@ namespace SharedTools.ModuleManagement.Pages.Modules;
 
 public class IndexModel : PageModel
 {
-    private readonly ModuleRegistry moduleRegistry;
+    private readonly ModuleManagementSystem moduleManagementSystem;
 
-    public IndexModel(ModuleRegistry moduleRegistry)
+    public IndexModel(ModuleManagementSystem moduleManagementSystem)
     {
-        this.moduleRegistry = moduleRegistry;
+        this.moduleManagementSystem = moduleManagementSystem;
     }
 
     public IEnumerable<ModuleInfo> Modules { get; private set; } = [];
-    public int ModuleCount => moduleRegistry.ModuleCount;
+    public int ModuleCount => moduleManagementSystem.ModuleCount;
 
     public void OnGet()
     {
-        Modules = moduleRegistry.GetAllModules();
+        Modules = moduleManagementSystem.GetAllModules();
     }
 }

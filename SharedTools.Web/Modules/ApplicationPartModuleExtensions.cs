@@ -4,14 +4,13 @@ using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging;
-
 using NuGet.Configuration;
 using NuGet.Frameworks;
 using NuGet.Packaging;
 using NuGet.Packaging.Core;
 using NuGet.Protocol.Core.Types;
 using NuGet.Versioning;
-
+using SharedTools.Web.Services;
 using System.Reflection;
 
 namespace SharedTools.Web.Modules;
@@ -22,14 +21,6 @@ namespace SharedTools.Web.Modules;
 public static class ApplicationPartModuleExtensions
 {
     private static NuGet.Common.ILogger NuGetLogger { get; set; } = NuGet.Common.NullLogger.Instance;
-
-    internal class ModuleRegistry
-    {
-        public List<IApplicationPartModule> Modules { get; } = [];
-        public List<(string ModuleName, IFileProvider FileProvider)> StaticFileProviders { get; } = [];
-        public List<ModuleAssemblyLoadContext> AssemblyLoadContexts { get; } = [];
-    }
-
     /// <summary>
     /// Discovers modules from NuGet packages, resolves their dependencies, downloads them,
     /// and integrates them into the application using ApplicationParts.
@@ -59,21 +50,43 @@ public static class ApplicationPartModuleExtensions
         Directory.CreateDirectory(tempCachePath);
         logger?.LogInformation("Using temporary cache directory: {BaseTempPath}", tempCachePath);
 
-        var repositories = CreateSourceRepositories(nuGetRepositoryUrls, logger);
+        var repositories = NuGetPackageService.CreateSourceRepositories(nuGetRepositoryUrls, logger);
         var nuGetCacheContext = new SourceCacheContext { NoCache = true };
         var nuGetSettings = Settings.LoadDefaultSettings(root: null);
 
         var targetFramework = new NuGetFramework(".NETCoreApp", new Version(10, 0));
         logger?.LogInformation("Resolving dependencies for target framework: {Framework}", targetFramework.DotNetFrameworkName);
 
+        // Create NuGet service
+        var nugetService = new NuGetPackageService(logger);
+
+        // Create module loading context
+        var loadingContext = new ModuleLoadingContext
+        {
+            Environment = env,
+            PartManager = partManager,
+            ModuleRegistry = moduleRegistry,
+            Logger = logger,
+            TempCachePath = tempCachePath
+        };
+
         foreach (var packageId in packageIds)
         {
             logger?.LogInformation("--- Processing root package: {PackageId} ---", packageId);
             try
             {
-                var allPackagesToInstall = await ResolveDependencyGraphAsync(
-                    packageId, specificPackageVersion, targetFramework,
-                    repositories, nuGetCacheContext, logger);
+                // Create dependency resolution context
+                var resolutionContext = new DependencyResolutionContext
+                {
+                    PackageId = packageId,
+                    Version = specificPackageVersion,
+                    Framework = targetFramework,
+                    Repositories = repositories,
+                    CacheContext = nuGetCacheContext,
+                    Logger = logger
+                };
+
+                var allPackagesToInstall = await nugetService.ResolveDependencyGraphAsync(resolutionContext);
 
                 if (allPackagesToInstall == null || !allPackagesToInstall.Any())
                 {
@@ -95,10 +108,20 @@ public static class ApplicationPartModuleExtensions
 
                 logger?.LogInformation("Extracting all package dependencies to flat directory: {Path}", flatExtractionPath);
 
+                // Create extraction context
+                var extractionContext = new PackageExtractionContext
+                {
+                    Packages = allPackagesToInstall,
+                    FlatExtractionPath = flatExtractionPath,
+                    TargetFramework = targetFramework,
+                    Repositories = repositories,
+                    Settings = nuGetSettings,
+                    CacheContext = nuGetCacheContext,
+                    Logger = logger
+                };
+
                 // Extract all packages to flat directory
-                await ExtractPackagesToFlatDirectory(
-                    allPackagesToInstall, flatExtractionPath, targetFramework,
-                    repositories, nuGetSettings, nuGetCacheContext, logger);
+                await nugetService.ExtractPackagesToFlatDirectory(extractionContext);
 
                 // Load the main assembly
                 string mainAssemblyPath = Path.Combine(flatExtractionPath, $"{rootPackageIdentity.Id}.dll");
@@ -128,9 +151,21 @@ public static class ApplicationPartModuleExtensions
                     continue;
                 }
 
-                ProcessAssemblyForModules(
-                    assembly, rootPackageIdentity.Id, flatExtractionPath,
-                    builder, partManager, moduleRegistry, logger, env, loadContext);
+                // Create assembly processing context
+                var processingContext = new AssemblyProcessingContext
+                {
+                    Assembly = assembly,
+                    ModuleName = rootPackageIdentity.Id,
+                    ExtractionPath = flatExtractionPath,
+                    Builder = builder,
+                    PartManager = partManager,
+                    ModuleRegistry = moduleRegistry,
+                    Environment = env,
+                    LoadContext = loadContext,
+                    Logger = logger
+                };
+
+                ProcessAssemblyForModules(processingContext);
 
                 // Store the load context to prevent it from being garbage collected
                 moduleRegistry.AssemblyLoadContexts.Add(loadContext);
@@ -151,39 +186,31 @@ public static class ApplicationPartModuleExtensions
 
         return builder;
     }
-
-    private static void ProcessAssemblyForModules(
-        Assembly assembly,
-        string moduleName,
-        string extractionPath,
-        WebApplicationBuilder builder,
-        ApplicationPartManager partManager,
-        ModuleRegistry moduleRegistry,
-        ILogger? logger,
-        IWebHostEnvironment env,
-        ModuleAssemblyLoadContext loadContext)
+    private static void ProcessAssemblyForModules(AssemblyProcessingContext context)
     {
-        logger?.LogInformation("Processing assembly {AssemblyName} for application part modules.", assembly.FullName ?? "UnknownAssembly");
+        context.Logger?.LogInformation("Processing assembly {AssemblyName} for application part modules.",
+            context.Assembly.FullName ?? "UnknownAssembly");
 
         // Find all types implementing IApplicationPartModule
         Type[] types;
         try
         {
-            types = assembly.GetTypes();
+            types = context.Assembly.GetTypes();
         }
         catch (ReflectionTypeLoadException ex)
         {
             // Some types couldn't be loaded, but we can still work with the ones that did load
             types = ex.Types.Where(t => t != null).ToArray()!;
-            logger?.LogWarning("Some types could not be loaded from {AssemblyName}. Continuing with {LoadedTypeCount} types.",
-                assembly.FullName ?? "UnknownAssembly", types.Length);
+            context.Logger?.LogWarning("Some types could not be loaded from {AssemblyName}. Continuing with {LoadedTypeCount} types.",
+                context.Assembly.FullName ?? "UnknownAssembly", types.Length);
         }
 
         var moduleTypes = types
             .Where(t => t != null && typeof(IApplicationPartModule).IsAssignableFrom(t) &&
                        !t.IsInterface && !t.IsAbstract);
 
-        logger?.LogInformation("Found {ModuleTypeCount} IApplicationPartModule implementations in {AssemblyName}", moduleTypes.Count(), assembly.FullName ?? "UnknownAssembly");
+        context.Logger?.LogInformation("Found {ModuleTypeCount} IApplicationPartModule implementations in {AssemblyName}",
+            moduleTypes.Count(), context.Assembly.FullName ?? "UnknownAssembly");
 
         foreach (var moduleType in moduleTypes)
         {
@@ -193,38 +220,38 @@ public static class ApplicationPartModuleExtensions
                 var module = (IApplicationPartModule)Activator.CreateInstance(moduleType)!;
 
                 // Configure services
-                module.ConfigureServices(builder.Services);
+                module.ConfigureServices(context.Builder.Services);
 
                 // Add AssemblyPart for Razor Pages discovery
-                if (!partManager.ApplicationParts.Any(p => p is AssemblyPart ap && ap.Assembly == assembly))
+                if (!context.PartManager.ApplicationParts.Any(p => p is AssemblyPart ap && ap.Assembly == context.Assembly))
                 {
-                    partManager.ApplicationParts.Add(new AssemblyPart(assembly));
+                    context.PartManager.ApplicationParts.Add(new AssemblyPart(context.Assembly));
                 }
 
                 // Add CompiledRazorAssemblyPart for the main assembly (views are compiled into main assembly in .NET 6+)
-                var compiledRazorPart = new CompiledRazorAssemblyPart(assembly);
-                partManager.ApplicationParts.Add(compiledRazorPart);
-                logger?.LogInformation("Added CompiledRazorAssemblyPart for main assembly {AssemblyName} of module {ModuleName}",
-                    assembly.GetName().Name, module.Name);
+                var compiledRazorPart = new CompiledRazorAssemblyPart(context.Assembly);
+                context.PartManager.ApplicationParts.Add(compiledRazorPart);
+                context.Logger?.LogInformation("Added CompiledRazorAssemblyPart for main assembly {AssemblyName} of module {ModuleName}",
+                    context.Assembly.GetName().Name, module.Name);
 
                 // Let the module configure additional application parts if needed
-                module.ConfigureApplicationParts(partManager);
+                module.ConfigureApplicationParts(context.PartManager);
 
                 // Register the module
-                moduleRegistry.Modules.Add(module);
+                context.ModuleRegistry.Modules.Add(module);
 
-                logger?.LogInformation(
+                context.Logger?.LogInformation(
                     "Initialized module {ModuleTypeName} from {AssemblyName} as ApplicationPart",
-                    moduleType.FullName, assembly.FullName ?? "UnknownAssembly");
+                    moduleType.FullName, context.Assembly.FullName ?? "UnknownAssembly");
 
                 // Handle static assets
-                RegisterModuleStaticAssets(assembly, module.Name, moduleRegistry, logger);
+                RegisterModuleStaticAssets(context.Assembly, module.Name, context.ModuleRegistry, context.Logger);
             }
             catch (Exception ex)
             {
-                logger?.LogError(ex,
+                context.Logger?.LogError(ex,
                     "Failed to create instance or configure module {ModuleTypeName} from assembly {AssemblyName}\r\n{Error}",
-                    moduleType.FullName, assembly.FullName ?? "UnknownAssembly", ex.Message);
+                    moduleType.FullName, context.Assembly.FullName ?? "UnknownAssembly", ex.Message);
             }
         }
 
@@ -232,22 +259,21 @@ public static class ApplicationPartModuleExtensions
         if (!moduleTypes.Any())
         {
             // Add AssemblyPart for Razor Pages discovery
-            if (!partManager.ApplicationParts.Any(part => part is AssemblyPart ap && ap.Assembly == assembly))
+            if (!context.PartManager.ApplicationParts.Any(part => part is AssemblyPart ap && ap.Assembly == context.Assembly))
             {
-                partManager.ApplicationParts.Add(new AssemblyPart(assembly));
-                logger?.LogTrace("Added AssemblyPart for {AssemblyName}", assembly.FullName ?? "UnknownAssembly");
+                context.PartManager.ApplicationParts.Add(new AssemblyPart(context.Assembly));
+                context.Logger?.LogTrace("Added AssemblyPart for {AssemblyName}", context.Assembly.FullName ?? "UnknownAssembly");
             }
 
             // Add CompiledRazorAssemblyPart for compiled Razor views/pages
-            if (!partManager.ApplicationParts.Any(part => part is CompiledRazorAssemblyPart crap &&
-                crap.Assembly == assembly))
+            if (!context.PartManager.ApplicationParts.Any(part => part is CompiledRazorAssemblyPart crap &&
+                crap.Assembly == context.Assembly))
             {
-                partManager.ApplicationParts.Add(new CompiledRazorAssemblyPart(assembly));
-                logger?.LogTrace("Added CompiledRazorAssemblyPart for {AssemblyName}", assembly.FullName ?? "UnknownAssembly");
+                context.PartManager.ApplicationParts.Add(new CompiledRazorAssemblyPart(context.Assembly));
+                context.Logger?.LogTrace("Added CompiledRazorAssemblyPart for {AssemblyName}", context.Assembly.FullName ?? "UnknownAssembly");
             }
         }
     }
-
     private static void RegisterModuleStaticAssets(
         Assembly assembly,
         string moduleName,
@@ -256,22 +282,43 @@ public static class ApplicationPartModuleExtensions
     {
         // Check for embedded wwwroot resources
         var manifestResourceNames = assembly.GetManifestResourceNames();
-        logger?.LogInformation("We found {ResourceCount} manifest resources in assembly {AssemblyName}",
+        logger?.LogInformation("Found {ResourceCount} manifest resources in assembly {AssemblyName}",
             manifestResourceNames.Length, assembly.FullName ?? "UnknownAssembly");
 
-        if (manifestResourceNames.Any(r => r.Contains("wwwroot.", StringComparison.OrdinalIgnoreCase)))
-        {
-            // The namespace prefix for embedded resources is the assembly name + ".wwwroot"
-            var assemblyName = assembly.GetName().Name ?? "Unknown";
-            var embeddedProvider = new EmbeddedFileProvider(assembly, $"{assemblyName}.wwwroot");
-            moduleRegistry.StaticFileProviders.Add((moduleName, embeddedProvider));
+        // Find resources that contain wwwroot
+        var wwwrootResources = manifestResourceNames.Where(r => r.Contains("wwwroot.", StringComparison.OrdinalIgnoreCase)).ToList();
 
-            logger?.LogInformation(
-                "Registered EmbeddedFileProvider for module {ModuleName} from assembly {AssemblyName} with base namespace {BaseNamespace}",
-                moduleName, assembly.FullName ?? "UnknownAssembly", $"{assemblyName}.wwwroot");
+        if (wwwrootResources.Any())
+        {
+            // Detect the actual namespace prefix used for wwwroot resources
+            // Resources are typically named like "ExampleWebModule.wwwroot.styles.css" or "SharedTools.ExampleWebModule.wwwroot.styles.css"
+            var firstResource = wwwrootResources.First();
+            var wwwrootIndex = firstResource.IndexOf("wwwroot.", StringComparison.OrdinalIgnoreCase);
+
+            if (wwwrootIndex > 0)
+            {
+                // Extract the namespace prefix up to and including "wwwroot"
+                var baseNamespace = firstResource.Substring(0, wwwrootIndex + "wwwroot".Length);
+
+                logger?.LogInformation(
+                    "Detected embedded resource namespace: {BaseNamespace} from resource {ResourceName}",
+                    baseNamespace, firstResource);
+
+                var embeddedProvider = new EmbeddedFileProvider(assembly, baseNamespace);
+                moduleRegistry.StaticFileProviders.Add((moduleName, embeddedProvider));
+
+                logger?.LogInformation(
+                    "Registered EmbeddedFileProvider for module {ModuleName} from assembly {AssemblyName} with base namespace {BaseNamespace}",
+                    moduleName, assembly.FullName ?? "UnknownAssembly", baseNamespace);
+            }
+            else
+            {
+                logger?.LogWarning(
+                    "Could not determine namespace prefix for wwwroot resources in assembly {AssemblyName}",
+                    assembly.FullName ?? "UnknownAssembly");
+            }
         }
     }
-
     /// <summary>
     /// Configures the application to use the loaded application part modules.
     /// </summary>
@@ -364,234 +411,6 @@ public static class ApplicationPartModuleExtensions
         return newRegistry;
     }
 
-    private static async Task ExtractPackagesToFlatDirectory(
-        IEnumerable<PackageIdentity> packages,
-        string flatExtractionPath,
-        NuGetFramework targetFramework,
-        IEnumerable<SourceRepository> repositories,
-        ISettings nuGetSettings,
-        SourceCacheContext cacheContext,
-        ILogger? logger)
-    {
-        foreach (var packageIdentity in packages)
-        {
-            var (downloadResult, _) = await FindAndDownloadPackageAsync(
-                packageIdentity.Id, packageIdentity.Version.ToNormalizedString(),
-                repositories, nuGetSettings, cacheContext, logger);
-
-            if (downloadResult == null)
-            {
-                logger?.LogWarning("Failed to download dependency package {PackageId}", packageIdentity);
-                continue;
-            }
-
-            using (var reader = new PackageArchiveReader(downloadResult.PackageStream))
-            {
-                var libItems = await reader.GetLibItemsAsync(CancellationToken.None);
-                var nearestFramework = NuGetFrameworkUtility.GetNearest(libItems, targetFramework,
-                    f => f.TargetFramework);
-
-                if (nearestFramework != null)
-                {
-                    foreach (var item in nearestFramework.Items)
-                    {
-                        if (item.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
-                        {
-                            reader.ExtractFile(item, Path.Combine(flatExtractionPath,
-                                Path.GetFileName(item)), NuGetLogger);
-                        }
-                    }
-                }
-
-            }
-
-            downloadResult.Dispose();
-        }
-    }
-
-
-    // The remaining helper methods (ResolveDependencyGraphAsync, FindAndDownloadPackageAsync, 
-    // CreateSourceRepositories, CreateTemporaryLogger) remain the same as in WebModuleExtensions
-    // I'll include them here for completeness...
-
-    private static async Task<IEnumerable<PackageIdentity>?> ResolveDependencyGraphAsync(
-        string packageId,
-        string? version,
-        NuGetFramework framework,
-        IEnumerable<SourceRepository> repositories,
-        SourceCacheContext cacheContext,
-        ILogger? logger)
-    {
-        var resolvedPackages = new Dictionary<string, PackageIdentity>(StringComparer.OrdinalIgnoreCase);
-        var packagesToProcess = new Queue<(PackageIdentity package, SourceRepository repository)>();
-
-        async Task<(NuGetVersion? version, SourceRepository? repo)> FindPackageInPrioritizedReposAsync(
-            string pkgId, VersionRange? range = null)
-        {
-            foreach (var repo in repositories)
-            {
-                try
-                {
-                    var findResource = await repo.GetResourceAsync<FindPackageByIdResource>();
-                    var versions = await findResource.GetAllVersionsAsync(pkgId, cacheContext,
-                        NuGetLogger, CancellationToken.None);
-
-                    if (versions != null && versions.Any())
-                    {
-                        logger?.LogInformation(
-                            "Package '{packageId}' found in repository: {PackageSourceName}. Using this source.",
-                            pkgId, repo.PackageSource.Name);
-
-                        NuGetVersion? bestVersion;
-                        if (range != null)
-                        {
-                            bestVersion = range.FindBestMatch(versions);
-                        }
-                        else
-                        {
-                            bestVersion = versions.Where(v => !v.IsPrerelease).Max() ?? versions.Max();
-                        }
-
-                        return (bestVersion, repo);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    logger?.LogWarning("Could not get versions for {packageId} from {PackageSourceName}: {message}",
-                        pkgId, repo.PackageSource.Name, ex.Message);
-                }
-            }
-
-            return (null, null);
-        }
-
-        // Find initial package
-        NuGetVersion? initialVersion;
-        SourceRepository? initialRepo;
-
-        if (!string.IsNullOrEmpty(version) && NuGetVersion.TryParse(version, out var parsedVersion))
-        {
-            (initialVersion, initialRepo) = await FindPackageInPrioritizedReposAsync(packageId,
-                new VersionRange(parsedVersion, true, parsedVersion, true));
-        }
-        else
-        {
-            (initialVersion, initialRepo) = await FindPackageInPrioritizedReposAsync(packageId);
-        }
-
-        if (initialVersion == null || initialRepo == null)
-        {
-            logger?.LogError("Could not find root package {packageId} in any repository.", packageId);
-            return null;
-        }
-
-        var initialIdentity = new PackageIdentity(packageId, initialVersion);
-        packagesToProcess.Enqueue((initialIdentity, initialRepo));
-        resolvedPackages.Add(packageId, initialIdentity);
-
-        while (packagesToProcess.Count > 0)
-        {
-            var (currentPackage, sourceRepo) = packagesToProcess.Dequeue();
-            logger?.LogTrace("Analyzing dependencies for {currentPackage} from {PackageSourceName}",
-                currentPackage, sourceRepo.PackageSource.Name);
-
-            var depInfoResource = await sourceRepo.GetResourceAsync<DependencyInfoResource>();
-            var dependencyInfo = await depInfoResource.ResolvePackage(currentPackage, framework,
-                cacheContext, NuGetLogger, CancellationToken.None);
-
-            if (dependencyInfo == null)
-            {
-                logger?.LogWarning(
-                    "Could not find dependency info for package {currentPackage}. It might be a package without dependencies.",
-                    currentPackage);
-                continue;
-            }
-
-            foreach (var dependency in dependencyInfo.Dependencies)
-            {
-                var (bestVersion, foundInRepo) = await FindPackageInPrioritizedReposAsync(
-                    dependency.Id, dependency.VersionRange);
-
-                if (bestVersion == null || foundInRepo == null)
-                {
-                    logger?.LogWarning(
-                        "Could not find a compatible version for dependency {Id} with range {VersionRange} in any repository.",
-                        dependency.Id, dependency.VersionRange);
-                    continue;
-                }
-
-                if (!resolvedPackages.TryGetValue(dependency.Id, out var existing) || bestVersion > existing.Version)
-                {
-                    var newIdentity = new PackageIdentity(dependency.Id, bestVersion);
-                    if (existing == null)
-                    {
-                        packagesToProcess.Enqueue((newIdentity, foundInRepo));
-                    }
-                    resolvedPackages[dependency.Id] = newIdentity;
-                    logger?.LogTrace("  -> Resolved dependency: {Id} {Version} from {PackageSourceName}",
-                        newIdentity.Id, newIdentity.Version, foundInRepo.PackageSource.Name);
-                }
-            }
-        }
-
-        return resolvedPackages.Values;
-    }
-
-    private static async Task<(DownloadResourceResult? downloadResult, PackageIdentity? packageIdentity)>
-        FindAndDownloadPackageAsync(
-            string packageId,
-            string? specificVersion,
-            IEnumerable<SourceRepository> repositories,
-            ISettings nugetSettings,
-            SourceCacheContext cacheContext,
-            ILogger? logger)
-    {
-        PackageIdentity? packageIdentity = null;
-        DownloadResourceResult? downloadResult = null;
-
-        foreach (var repo in repositories)
-        {
-            logger?.LogTrace("Searching for {PackageId} in {Repository}", packageId, repo.PackageSource.Name);
-            var findResource = await repo.GetResourceAsync<FindPackageByIdResource>();
-            if (findResource == null) continue;
-
-            var allVersions = await findResource.GetAllVersionsAsync(packageId, cacheContext,
-                NuGetLogger, CancellationToken.None);
-            if (allVersions == null || !allVersions.Any()) continue;
-
-            NuGetVersion? versionToDownload = null;
-            if (!string.IsNullOrEmpty(specificVersion) && NuGetVersion.TryParse(specificVersion, out var parsedVersion))
-            {
-                versionToDownload = allVersions.FirstOrDefault(v => v.Equals(parsedVersion));
-            }
-            versionToDownload ??= allVersions.Where(v => !v.IsPrerelease).Max() ?? allVersions.Max();
-
-            if (versionToDownload == null) continue;
-
-            packageIdentity = new PackageIdentity(packageId, versionToDownload);
-            var downloadResource = await repo.GetResourceAsync<DownloadResource>();
-            if (downloadResource == null) continue;
-
-            var globalPackagesFolder = SettingsUtility.GetGlobalPackagesFolder(nugetSettings);
-            var downloadContext = new PackageDownloadContext(cacheContext, Path.GetTempPath(),
-                cacheContext.DirectDownload);
-
-            logger?.LogTrace("Downloading {PackageId} version {PackageVersion} from {Repository}",
-                packageId, versionToDownload, repo.PackageSource.Name);
-            downloadResult = await downloadResource.GetDownloadResourceResultAsync(packageIdentity,
-                downloadContext, globalPackagesFolder, NuGetLogger, CancellationToken.None);
-
-            if (downloadResult?.Status == DownloadResourceResultStatus.Available)
-            {
-                logger?.LogTrace("Successfully downloaded package {PackageId}.", packageId);
-                return (downloadResult, packageIdentity);
-            }
-        }
-
-        logger?.LogError("Failed to find or download package {PackageId} from any repository.", packageId);
-        return (null, null);
-    }
-
     private static ILogger? CreateTemporaryLogger()
     {
         try
@@ -615,41 +434,6 @@ public static class ApplicationPartModuleExtensions
             Console.WriteLine("[Error] Failed to create temporary logger: {ErrorMessage}", ex.Message);
             return null;
         }
-    }
-
-    private static List<SourceRepository> CreateSourceRepositories(IEnumerable<string>? repositoryUrls, ILogger? logger)
-    {
-        var sources = new List<PackageSource>();
-        ISettings settings;
-
-        if (repositoryUrls != null && repositoryUrls.Any())
-        {
-            logger?.LogInformation("Using explicit repository URLs provided in configuration.");
-            sources.AddRange(repositoryUrls.Select(url => new PackageSource(url)));
-            settings = Settings.LoadDefaultSettings(root: null);
-        }
-        else
-        {
-            logger?.LogInformation("No explicit URLs provided. Attempting to discover sources from nuget.config files...");
-            settings = Settings.LoadDefaultSettings(root: Directory.GetCurrentDirectory());
-            var discoveredSources = new PackageSourceProvider(settings).LoadPackageSources();
-
-            if (discoveredSources.Any())
-            {
-                logger?.LogInformation("Discovered {DiscoveredSourcesCount} sources from nuget.config.", discoveredSources.Count());
-                sources.AddRange(discoveredSources);
-            }
-            else
-            {
-                logger?.LogInformation("No sources found in nuget.config. Falling back to default nuget.org source.");
-                sources.Add(new PackageSource("https://api.nuget.org/v3/index.json", "nuget.org"));
-            }
-        }
-
-        var sourceProvider = new PackageSourceProvider(settings, sources);
-        var sourceRepoProvider = new SourceRepositoryProvider(sourceProvider, Repository.Provider.GetCoreV3());
-
-        return [.. sourceRepoProvider.GetRepositories()];
     }
 
     #endregion
