@@ -4,13 +4,16 @@ using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging;
+
 using NuGet.Configuration;
 using NuGet.Frameworks;
 using NuGet.Packaging;
 using NuGet.Packaging.Core;
 using NuGet.Protocol.Core.Types;
 using NuGet.Versioning;
+
 using SharedTools.Web.Services;
+
 using System.Reflection;
 
 namespace SharedTools.Web.Modules;
@@ -42,152 +45,158 @@ public static class ApplicationPartModuleExtensions
 
         // Get the ApplicationPartManager
         var mvcBuilder = builder.Services.AddRazorPages();
-        var partManager = mvcBuilder.PartManager;
+        var partManager = mvcBuilder.PartManager
+            ?? throw new InvalidOperationException("ApplicationPartManager is not available. Ensure you have added Razor Pages or MVC.");
 
-        var logger = CreateTemporaryLogger();
+        // Ensure the part manager is initialized
         var processedAssemblies = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         string tempCachePath = Path.Combine(Path.GetTempPath(), "SharedTools_ApplicationPartModulesCache");
         Directory.CreateDirectory(tempCachePath);
-        logger?.LogInformation("Using temporary cache directory: {BaseTempPath}", tempCachePath);
 
-        var repositories = NuGetPackageService.CreateSourceRepositories(nuGetRepositoryUrls, logger);
-        var nuGetCacheContext = new SourceCacheContext { NoCache = true };
-        var nuGetSettings = Settings.LoadDefaultSettings(root: null);
-
-        var targetFramework = DefaultTargetFramework;
-        logger?.LogInformation("Resolving dependencies for target framework: {Framework}", targetFramework.DotNetFrameworkName);
-
-        // Create NuGet service
-        var nugetService = new NuGetPackageService(logger);
-
-        // Create module loading context
-        var loadingContext = new ModuleLoadingContext
+        var (logger, loggerFactory) = CreateTemporaryLogger();
+        using (loggerFactory)
         {
-            Environment = env,
-            PartManager = partManager,
-            ModuleRegistry = moduleRegistry,
-            Logger = logger,
-            TempCachePath = tempCachePath
-        };
+            logger?.LogInformation("Using temporary cache directory: {BaseTempPath}", tempCachePath);
 
-        foreach (var packageId in packageIds)
-        {
-            logger?.LogInformation("--- Processing root package: {PackageId} ---", packageId);
-            try
+            var repositories = NuGetPackageService.CreateSourceRepositories(nuGetRepositoryUrls, logger);
+            var nuGetCacheContext = new SourceCacheContext { NoCache = true };
+            var nuGetSettings = Settings.LoadDefaultSettings(root: null);
+
+            var targetFramework = DefaultTargetFramework;
+            logger?.LogInformation("Resolving dependencies for target framework: {Framework}", targetFramework.DotNetFrameworkName);
+
+            // Create NuGet service
+            var nugetService = new NuGetPackageService(logger);
+
+            // Create module loading context
+            var loadingContext = new ModuleLoadingContext
             {
-                // Create dependency resolution context
-                var resolutionContext = new DependencyResolutionContext
-                {
-                    PackageId = packageId,
-                    Version = specificPackageVersion,
-                    Framework = targetFramework,
-                    Repositories = repositories,
-                    CacheContext = nuGetCacheContext,
-                    Logger = logger
-                };
+                Environment = env,
+                PartManager = partManager,
+                ModuleRegistry = moduleRegistry,
+                Logger = logger,
+                TempCachePath = tempCachePath
+            };
 
-                var allPackagesToInstall = await nugetService.ResolveDependencyGraphAsync(resolutionContext);
-
-                if (allPackagesToInstall == null || !allPackagesToInstall.Any())
-                {
-                    logger?.LogError("Could not resolve dependency graph for {PackageId}.", packageId);
-                    continue;
-                }
-
-                var rootPackageIdentity = allPackagesToInstall.First(p =>
-                    p.Id.Equals(packageId, StringComparison.OrdinalIgnoreCase));
-
-                string flatExtractionPath = Path.Combine(tempCachePath,
-                    $"{rootPackageIdentity.Id}.{rootPackageIdentity.Version}_flat");
-
-                if (Directory.Exists(flatExtractionPath))
-                {
-                    Directory.Delete(flatExtractionPath, recursive: true);
-                }
-                Directory.CreateDirectory(flatExtractionPath);
-
-                logger?.LogInformation("Extracting all package dependencies to flat directory: {Path}", flatExtractionPath);
-
-                // Create extraction context
-                var extractionContext = new PackageExtractionContext
-                {
-                    Packages = allPackagesToInstall,
-                    FlatExtractionPath = flatExtractionPath,
-                    TargetFramework = targetFramework,
-                    Repositories = repositories,
-                    Settings = nuGetSettings,
-                    CacheContext = nuGetCacheContext,
-                    Logger = logger
-                };
-
-                // Extract all packages to flat directory
-                await nugetService.ExtractPackagesToFlatDirectory(extractionContext);
-
-                // Load the main assembly
-                string mainAssemblyPath = Path.Combine(flatExtractionPath, $"{rootPackageIdentity.Id}.dll");
-                if (!File.Exists(mainAssemblyPath))
-                {
-                    logger?.LogError("Could not find main assembly {AssemblyPath} after extraction.", mainAssemblyPath);
-                    continue;
-                }
-
-                Assembly assembly;
-                ModuleAssemblyLoadContext loadContext;
+            foreach (var packageId in packageIds)
+            {
+                logger?.LogInformation("--- Processing root package: {PackageId} ---", packageId);
                 try
                 {
-                    logger?.LogInformation("Loading main assembly from: {AssemblyPath}", mainAssemblyPath);
-                    loadContext = new ModuleAssemblyLoadContext(mainAssemblyPath);
-                    assembly = loadContext.LoadFromAssemblyPath(mainAssemblyPath);
+                    // Create dependency resolution context
+                    var resolutionContext = new DependencyResolutionContext
+                    {
+                        PackageId = packageId,
+                        Version = specificPackageVersion,
+                        Framework = targetFramework,
+                        Repositories = repositories,
+                        CacheContext = nuGetCacheContext,
+                        Logger = logger
+                    };
+
+                    var allPackagesToInstall = await nugetService.ResolveDependencyGraphAsync(resolutionContext);
+
+                    if (allPackagesToInstall == null || !allPackagesToInstall.Any())
+                    {
+                        logger?.LogError("Could not resolve dependency graph for {PackageId}.", packageId);
+                        continue;
+                    }
+
+                    var rootPackageIdentity = allPackagesToInstall.First(p =>
+                        p.Id.Equals(packageId, StringComparison.OrdinalIgnoreCase));
+
+                    string flatExtractionPath = Path.Combine(tempCachePath,
+                        $"{rootPackageIdentity.Id}.{rootPackageIdentity.Version}_flat");
+
+                    if (Directory.Exists(flatExtractionPath))
+                    {
+                        Directory.Delete(flatExtractionPath, recursive: true);
+                    }
+                    Directory.CreateDirectory(flatExtractionPath);
+
+                    logger?.LogInformation("Extracting all package dependencies to flat directory: {Path}", flatExtractionPath);
+
+                    // Create extraction context
+                    var extractionContext = new PackageExtractionContext
+                    {
+                        Packages = allPackagesToInstall,
+                        FlatExtractionPath = flatExtractionPath,
+                        TargetFramework = targetFramework,
+                        Repositories = repositories,
+                        Settings = nuGetSettings,
+                        CacheContext = nuGetCacheContext,
+                        Logger = logger
+                    };
+
+                    // Extract all packages to flat directory
+                    await nugetService.ExtractPackagesToFlatDirectory(extractionContext);
+
+                    // Load the main assembly
+                    string mainAssemblyPath = Path.Combine(flatExtractionPath, $"{rootPackageIdentity.Id}.dll");
+                    if (!File.Exists(mainAssemblyPath))
+                    {
+                        logger?.LogError("Could not find main assembly {AssemblyPath} after extraction.", mainAssemblyPath);
+                        continue;
+                    }
+
+                    Assembly assembly;
+                    ModuleAssemblyLoadContext loadContext;
+                    try
+                    {
+                        logger?.LogInformation("Loading main assembly from: {AssemblyPath}", mainAssemblyPath);
+                        loadContext = new ModuleAssemblyLoadContext(mainAssemblyPath);
+                        assembly = loadContext.LoadFromAssemblyPath(mainAssemblyPath);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger?.LogError(ex, "Failed to load assembly from {MainAssemblyPath}", mainAssemblyPath);
+                        continue;
+                    }
+
+                    if (processedAssemblies.Contains(assembly.FullName!))
+                    {
+                        logger?.LogInformation("Assembly {AssemblyName} was already processed. Skipping.", assembly.FullName);
+                        continue;
+                    }
+
+                    // Create assembly processing context
+                    var processingContext = new AssemblyProcessingContext
+                    {
+                        Assembly = assembly,
+                        ModuleName = rootPackageIdentity.Id,
+                        ExtractionPath = flatExtractionPath,
+                        Builder = builder,
+                        PartManager = partManager,
+                        ModuleRegistry = moduleRegistry,
+                        Environment = env,
+                        LoadContext = loadContext,
+                        Logger = logger
+                    };
+
+                    ProcessAssemblyForModules(processingContext);
+
+                    // Store the load context to prevent it from being garbage collected
+                    moduleRegistry.AssemblyLoadContexts.Add(loadContext);
+
+                    processedAssemblies.Add(assembly.FullName!);
                 }
                 catch (Exception ex)
                 {
-                    logger?.LogError(ex, "Failed to load assembly from {MainAssemblyPath}", mainAssemblyPath);
-                    continue;
+                    logger?.LogError(ex, "An unhandled error occurred while processing package {PackageId}", packageId);
                 }
-
-                if (processedAssemblies.Contains(assembly.FullName!))
-                {
-                    logger?.LogInformation("Assembly {AssemblyName} was already processed. Skipping.", assembly.FullName);
-                    continue;
-                }
-
-                // Create assembly processing context
-                var processingContext = new AssemblyProcessingContext
-                {
-                    Assembly = assembly,
-                    ModuleName = rootPackageIdentity.Id,
-                    ExtractionPath = flatExtractionPath,
-                    Builder = builder,
-                    PartManager = partManager,
-                    ModuleRegistry = moduleRegistry,
-                    Environment = env,
-                    LoadContext = loadContext,
-                    Logger = logger
-                };
-
-                ProcessAssemblyForModules(processingContext);
-
-                // Store the load context to prevent it from being garbage collected
-                moduleRegistry.AssemblyLoadContexts.Add(loadContext);
-
-                processedAssemblies.Add(assembly.FullName!);
             }
-            catch (Exception ex)
-            {
-                logger?.LogError(ex, "An unhandled error occurred while processing package {PackageId}", packageId);
-            }
+
+            // Register the module registry as a singleton
+            builder.Services.AddSingleton<IReadOnlyCollection<IApplicationPartModule>>(
+                moduleRegistry.Modules.AsReadOnly());
+
+            logger?.LogInformation("Registered {ModuleCount} application part modules in total.", moduleRegistry.Modules.Count);
+
+            return builder;
         }
-
-        // Register the module registry as a singleton
-        builder.Services.AddSingleton<IReadOnlyCollection<IApplicationPartModule>>(
-            moduleRegistry.Modules.AsReadOnly());
-
-        logger?.LogInformation("Registered {ModuleCount} application part modules in total.", moduleRegistry.Modules.Count);
-
-        return builder;
     }
-    
+
     private static void ProcessAssemblyForModules(AssemblyProcessingContext context)
     {
         context.Logger?.LogInformation("Processing assembly {AssemblyName} for application part modules.",
@@ -276,7 +285,7 @@ public static class ApplicationPartModuleExtensions
             }
         }
     }
-    
+
     private static void RegisterModuleStaticAssets(
         Assembly assembly,
         string moduleName,
@@ -393,11 +402,12 @@ public static class ApplicationPartModuleExtensions
         return newRegistry;
     }
 
-    private static ILogger? CreateTemporaryLogger()
+    private static (ILogger?, ILoggerFactory?) CreateTemporaryLogger()
     {
+        ILoggerFactory? loggerFactory = default;
         try
         {
-            using var loggerFactory = LoggerFactory.Create(builder =>
+            loggerFactory = LoggerFactory.Create(builder =>
             {
                 builder.ClearProviders();
                 builder.AddConsole(options =>
@@ -409,12 +419,13 @@ public static class ApplicationPartModuleExtensions
 
                 builder.AddDebug();
             });
-            return loggerFactory.CreateLogger(typeof(ApplicationPartModuleExtensions));
+            return (loggerFactory.CreateLogger(typeof(ApplicationPartModuleExtensions)), loggerFactory);
         }
         catch (Exception ex)
         {
-            Console.WriteLine("[Error] Failed to create temporary logger: {ErrorMessage}", ex.Message);
-            return null;
+            Console.WriteLine("[Error] Failed to create temporary logger: {0}", ex.Message);
+            loggerFactory?.Dispose();
+            return (null, null);
         }
     }
 
