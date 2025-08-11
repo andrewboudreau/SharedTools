@@ -1,12 +1,11 @@
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.AspNetCore.Razor.Hosting;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 using SharedTools.Web.Modules;
 
 using System.Reflection;
 
-namespace Tests;
+namespace ExampleWebModule.Tests;
 
 [TestClass]
 public class RazorCompilationTests
@@ -15,7 +14,7 @@ public class RazorCompilationTests
     public void ModuleAssembly_ShouldContainCompiledRazorPages()
     {
         // Arrange
-        var moduleAssembly = typeof(ExampleWebModule.ExampleApplicationPartModule).Assembly;
+        var moduleAssembly = typeof(ExampleApplicationPartModule).Assembly;
 
         // Act
         var razorCompiledTypes = moduleAssembly.GetTypes()
@@ -38,7 +37,7 @@ public class RazorCompilationTests
     public void ModuleAssembly_ShouldHaveRazorCompiledItemAttributes()
     {
         // Arrange
-        var moduleAssembly = typeof(ExampleWebModule.ExampleApplicationPartModule).Assembly;
+        var moduleAssembly = typeof(ExampleApplicationPartModule).Assembly;
 
         // Act
         var compiledItems = moduleAssembly
@@ -63,7 +62,7 @@ public class RazorCompilationTests
         // The ViewsFeature requires full initialization that's typically done by the ASP.NET Core host
 
         // Arrange
-        var moduleAssembly = typeof(ExampleWebModule.ExampleApplicationPartModule).Assembly;
+        var moduleAssembly = typeof(ExampleApplicationPartModule).Assembly;
         var partManager = new ApplicationPartManager();
 
         // Act

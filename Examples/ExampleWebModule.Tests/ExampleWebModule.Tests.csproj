@@ -1,0 +1,20 @@
+﻿<Project Sdk="MSTest.Sdk/3.8.3">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<LangVersion>latest</LangVersion>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<AssemblyName>SharedTools.ExampleWebModule.Tests</AssemblyName>
+		<TestingPlatformShowTestsFailure>true</TestingPlatformShowTestsFailure>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\SharedTools.Web\SharedTools.Web.csproj">
+			<PrivateAssets>all</PrivateAssets>
+		</ProjectReference>
+		
+		<ProjectReference Include="..\ExampleWebModule\ExampleWebModule.csproj" />
+	</ItemGroup>
+
+</Project>

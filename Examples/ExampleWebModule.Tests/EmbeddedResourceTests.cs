@@ -1,7 +1,6 @@
 using Microsoft.Extensions.FileProviders;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Tests;
+namespace ExampleWebModule.Tests;
 
 [TestClass]
 public class EmbeddedResourceTests

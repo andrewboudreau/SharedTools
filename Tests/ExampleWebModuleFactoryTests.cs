@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Mvc.Testing;
+
 using System.Net;
 
 namespace Tests;
@@ -5,15 +7,12 @@ namespace Tests;
 [TestClass]
 public class ExampleWebModuleFactoryTests
 {
-    private ModularWebApplicationFactory? _factory;
+    private WebApplicationFactory<ExampleWebApp.Program>? _factory;
 
     [TestInitialize]
     public void Setup()
     {
-        _factory = new ModularWebApplicationFactory(
-            "SharedTools.ExampleWebModule",
-            "SharedTools.ModuleManagement"
-        );
+        _factory = new WebApplicationFactory<ExampleWebApp.Program>();
     }
 
     [TestCleanup]

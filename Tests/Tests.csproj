@@ -13,9 +13,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <ProjectReference Include="..\ExampleWebApp\ExampleWebApp.csproj" />
-	  <ProjectReference Include="..\ExampleWebModule\ExampleWebModule.csproj" />
-	  <ProjectReference Include="..\SharedTools.Web\SharedTools.Web.csproj" />
+	  <ProjectReference Include="..\Examples\ExampleWebApp\ExampleWebApp.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>

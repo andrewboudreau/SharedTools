@@ -5,7 +5,7 @@ VisualStudioVersion = 17.14.36109.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharedTools.Web", "SharedTools.Web\SharedTools.Web.csproj", "{1A5B4F37-3537-40BF-8AB0-E72BBA96554C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExampleWebApp", "ExampleWebApp\ExampleWebApp.csproj", "{FC91D489-395C-46EC-B81D-197768700895}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExampleWebApp", "Examples\ExampleWebApp\ExampleWebApp.csproj", "{FC91D489-395C-46EC-B81D-197768700895}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{8EC462FD-D22E-90A8-E5CE-7E832BA40C5D}"
 	ProjectSection(SolutionItems) = preProject
@@ -13,15 +13,17 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		tag-release.ps1 = tag-release.ps1
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExampleWebModule", "ExampleWebModule\ExampleWebModule.csproj", "{2704D151-FB0A-40F5-B6DA-00C001D41420}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExampleWebModule", "Examples\ExampleWebModule\ExampleWebModule.csproj", "{2704D151-FB0A-40F5-B6DA-00C001D41420}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharedTools.Tests", "SharedTools.Tests\SharedTools.Tests.csproj", "{EB6B2A57-451C-CA87-9912-0281D3834C5E}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharedTools.ModuleManagement", "SharedTools.ModuleManagement\SharedTools.ModuleManagement.csproj", "{2C8180EC-848A-4F0E-AE01-240802E1D23E}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Example", "Example", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Examples", "Examples", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tests", "Tests\Tests.csproj", "{A6B3A41B-A2BD-4554-AD2F-8D58CA99825F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExampleWebModule.Tests", "Examples\ExampleWebModule.Tests\ExampleWebModule.Tests.csproj", "{311642BE-9EF4-476C-B73C-863E84CFCF0C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -105,6 +107,18 @@ Global
 		{A6B3A41B-A2BD-4554-AD2F-8D58CA99825F}.Release|x64.Build.0 = Release|Any CPU
 		{A6B3A41B-A2BD-4554-AD2F-8D58CA99825F}.Release|x86.ActiveCfg = Release|Any CPU
 		{A6B3A41B-A2BD-4554-AD2F-8D58CA99825F}.Release|x86.Build.0 = Release|Any CPU
+		{311642BE-9EF4-476C-B73C-863E84CFCF0C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{311642BE-9EF4-476C-B73C-863E84CFCF0C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{311642BE-9EF4-476C-B73C-863E84CFCF0C}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{311642BE-9EF4-476C-B73C-863E84CFCF0C}.Debug|x64.Build.0 = Debug|Any CPU
+		{311642BE-9EF4-476C-B73C-863E84CFCF0C}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{311642BE-9EF4-476C-B73C-863E84CFCF0C}.Debug|x86.Build.0 = Debug|Any CPU
+		{311642BE-9EF4-476C-B73C-863E84CFCF0C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{311642BE-9EF4-476C-B73C-863E84CFCF0C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{311642BE-9EF4-476C-B73C-863E84CFCF0C}.Release|x64.ActiveCfg = Release|Any CPU
+		{311642BE-9EF4-476C-B73C-863E84CFCF0C}.Release|x64.Build.0 = Release|Any CPU
+		{311642BE-9EF4-476C-B73C-863E84CFCF0C}.Release|x86.ActiveCfg = Release|Any CPU
+		{311642BE-9EF4-476C-B73C-863E84CFCF0C}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -112,6 +126,7 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{FC91D489-395C-46EC-B81D-197768700895} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 		{2704D151-FB0A-40F5-B6DA-00C001D41420} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
+		{311642BE-9EF4-476C-B73C-863E84CFCF0C} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {AFE14FD5-F1AD-4B11-BA34-A2D5F4A7A214}

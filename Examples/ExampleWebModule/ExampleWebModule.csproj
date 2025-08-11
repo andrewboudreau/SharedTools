@@ -33,7 +33,7 @@
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
 		<PackageReference Include="Azure.Storage.Blobs" Version="12.26.0-beta.1" />
 
-		<ProjectReference Include="..\SharedTools.Web\SharedTools.Web.csproj">
+		<ProjectReference Include="..\..\SharedTools.Web\SharedTools.Web.csproj">
 			<PrivateAssets>all</PrivateAssets>
 		</ProjectReference>
 	</ItemGroup>

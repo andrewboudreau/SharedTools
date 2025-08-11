@@ -15,7 +15,8 @@ public class Program
         await builder.AddApplicationPartModules([
             "SharedTools.ExampleWebModule",
             "SharedTools.ModuleManagement"
-        ]);
+        ],
+        nuGetRepositoryUrls: ["C:\\LocalNuget\\"]);
 
         var app = builder.Build();
 

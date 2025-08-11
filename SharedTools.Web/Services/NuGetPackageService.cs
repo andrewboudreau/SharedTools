@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+
 using NuGet.Common;
 using NuGet.Configuration;
 using NuGet.Frameworks;
@@ -6,6 +7,7 @@ using NuGet.Packaging;
 using NuGet.Packaging.Core;
 using NuGet.Protocol.Core.Types;
 using NuGet.Versioning;
+
 using SharedTools.Web.Modules;
 using SharedTools.Web.Modules.Logging;
 
@@ -17,11 +19,10 @@ namespace SharedTools.Web.Services;
 public class NuGetPackageService
 {
     private static NuGet.Common.ILogger NuGetLogger { get; set; } = NullLogger.Instance;
-    private readonly ILogger<NuGetPackageService>? _logger;
-    public NuGetPackageService(Microsoft.Extensions.Logging.ILogger? logger = null)
+
+    public NuGetPackageService(Microsoft.Extensions.Logging.ILogger? logger = null, bool enableNugetLogger = false)
     {
-        _logger = logger as ILogger<NuGetPackageService>;
-        if (logger != null)
+        if (logger != null && enableNugetLogger)
         {
             NuGetLogger = new NugetLoggerAdapter(logger);
         }
@@ -34,16 +35,14 @@ public class NuGetPackageService
         var resolvedPackages = new Dictionary<string, PackageIdentity>(StringComparer.OrdinalIgnoreCase);
         var packagesToProcess = new Queue<(PackageIdentity package, SourceRepository repository)>();
 
-        async Task<(NuGetVersion? version, SourceRepository? repo)> FindPackageInPrioritizedReposAsync(
-        string pkgId, VersionRange? range = null)
+        async Task<(NuGetVersion? version, SourceRepository? repo)> FindPackageInPrioritizedReposAsync(string pkgId, VersionRange? range = null)
         {
             foreach (var repo in context.Repositories)
             {
                 try
                 {
                     var findResource = await repo.GetResourceAsync<FindPackageByIdResource>();
-                    var versions = await findResource.GetAllVersionsAsync(pkgId, context.CacheContext,
-                    NuGetLogger, CancellationToken.None);
+                    var versions = await findResource.GetAllVersionsAsync(pkgId, context.CacheContext, NuGetLogger, CancellationToken.None);
 
                     if (versions != null && versions.Any())
                     {
@@ -149,9 +148,7 @@ public class NuGetPackageService
     /// <summary>
     /// Finds and downloads a specific package version.
     /// </summary>
-    public async Task<(DownloadResourceResult? downloadResult, PackageIdentity? packageIdentity)> FindAndDownloadPackageAsync(
-
-        SharedTools.Web.Modules.PackageDownloadContext context)
+    public async Task<(DownloadResourceResult? downloadResult, PackageIdentity? packageIdentity)> FindAndDownloadPackageAsync(Modules.PackageDownloadContext context)
     {
         PackageIdentity? packageIdentity = null;
         DownloadResourceResult? downloadResult = null;
