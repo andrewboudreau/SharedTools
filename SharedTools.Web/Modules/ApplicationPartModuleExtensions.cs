@@ -4,13 +4,13 @@ using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging;
+
 using NuGet.Configuration;
 using NuGet.Frameworks;
-using NuGet.Packaging;
-using NuGet.Packaging.Core;
 using NuGet.Protocol.Core.Types;
-using NuGet.Versioning;
+
 using SharedTools.Web.Services;
+
 using System.Reflection;
 
 namespace SharedTools.Web.Modules;
@@ -20,6 +20,8 @@ namespace SharedTools.Web.Modules;
 /// </summary>
 public static class ApplicationPartModuleExtensions
 {
+    private static NuGetFramework DefaultTargetFramework { get; } = new NuGetFramework(".NETCoreApp", new Version(10, 0));
+
     private static NuGet.Common.ILogger NuGetLogger { get; set; } = NuGet.Common.NullLogger.Instance;
     /// <summary>
     /// Discovers modules from NuGet packages, resolves their dependencies, downloads them,
@@ -54,7 +56,7 @@ public static class ApplicationPartModuleExtensions
         var nuGetCacheContext = new SourceCacheContext { NoCache = true };
         var nuGetSettings = Settings.LoadDefaultSettings(root: null);
 
-        var targetFramework = new NuGetFramework(".NETCoreApp", new Version(10, 0));
+        var targetFramework = DefaultTargetFramework;
         logger?.LogInformation("Resolving dependencies for target framework: {Framework}", targetFramework.DotNetFrameworkName);
 
         // Create NuGet service

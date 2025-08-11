@@ -37,7 +37,8 @@
       "Bash(dotnet sln add:*)",
       "WebFetch(domain:docs.anthropic.com)",
       "mcp__SharpTools__SharpTool_OverwriteMember",
-      "mcp__SharpTools__SharpTool_GetMembers"
+      "mcp__SharpTools__SharpTool_GetMembers",
+      "Bash(dotnet test:*)"
     ],
     "deny": []
   }
