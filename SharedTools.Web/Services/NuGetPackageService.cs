@@ -29,7 +29,7 @@ public class NuGetPackageService
     /// <summary>
     /// Resolves the dependency graph for a package and returns all required packages.
     /// </summary>
-    public async Task<IEnumerable<PackageIdentity>?> ResolveDependencyGraphAsync(DependencyResolutionContext context)
+    public static async Task<IEnumerable<PackageIdentity>?> ResolveDependencyGraphAsync(DependencyResolutionContext context)
     {
         var resolvedPackages = new Dictionary<string, PackageIdentity>(StringComparer.OrdinalIgnoreCase);
         var packagesToProcess = new Queue<(PackageIdentity package, SourceRepository repository)>();
@@ -202,11 +202,11 @@ public class NuGetPackageService
     /// <summary>
     /// Extracts packages to a flat directory structure for assembly loading.
     /// </summary>
-    public async Task ExtractPackagesToFlatDirectory(SharedTools.Web.Modules.PackageExtractionContext context)
+    public async Task ExtractPackagesToFlatDirectory(Modules.PackageExtractionContext context)
     {
         foreach (var packageIdentity in context.Packages)
         {
-            var downloadContext = new SharedTools.Web.Modules.PackageDownloadContext
+            var downloadContext = new Modules.PackageDownloadContext
             {
                 PackageId = packageIdentity.Id,
                 SpecificVersion = packageIdentity.Version.ToNormalizedString(),

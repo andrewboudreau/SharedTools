@@ -21,6 +21,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharedTools.ModuleManagemen
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Example", "Example", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tests", "Tests\Tests.csproj", "{A6B3A41B-A2BD-4554-AD2F-8D58CA99825F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -91,6 +93,18 @@ Global
 		{2C8180EC-848A-4F0E-AE01-240802E1D23E}.Release|x64.Build.0 = Release|Any CPU
 		{2C8180EC-848A-4F0E-AE01-240802E1D23E}.Release|x86.ActiveCfg = Release|Any CPU
 		{2C8180EC-848A-4F0E-AE01-240802E1D23E}.Release|x86.Build.0 = Release|Any CPU
+		{A6B3A41B-A2BD-4554-AD2F-8D58CA99825F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A6B3A41B-A2BD-4554-AD2F-8D58CA99825F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A6B3A41B-A2BD-4554-AD2F-8D58CA99825F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A6B3A41B-A2BD-4554-AD2F-8D58CA99825F}.Debug|x64.Build.0 = Debug|Any CPU
+		{A6B3A41B-A2BD-4554-AD2F-8D58CA99825F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A6B3A41B-A2BD-4554-AD2F-8D58CA99825F}.Debug|x86.Build.0 = Debug|Any CPU
+		{A6B3A41B-A2BD-4554-AD2F-8D58CA99825F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A6B3A41B-A2BD-4554-AD2F-8D58CA99825F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A6B3A41B-A2BD-4554-AD2F-8D58CA99825F}.Release|x64.ActiveCfg = Release|Any CPU
+		{A6B3A41B-A2BD-4554-AD2F-8D58CA99825F}.Release|x64.Build.0 = Release|Any CPU
+		{A6B3A41B-A2BD-4554-AD2F-8D58CA99825F}.Release|x86.ActiveCfg = Release|Any CPU
+		{A6B3A41B-A2BD-4554-AD2F-8D58CA99825F}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

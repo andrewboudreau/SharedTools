@@ -4,26 +4,10 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+
 using SharedTools.Web.Modules;
 
-namespace SharedTools.Tests.WebApplicationFactoryTests;
-
-/// <summary>
-/// Program class for WebApplicationFactory
-/// </summary>
-public class TestProgram
-{
-    public static void Main(string[] args)
-    {
-        // This is only used by WebApplicationFactory
-        var builder = WebApplication.CreateBuilder(args);
-        builder.Services.AddRazorPages();
-        var app = builder.Build();
-        app.UseStaticFiles();
-        app.MapRazorPages();
-        app.Run();
-    }
-}
+namespace Tests;
 
 /// <summary>
 /// Testable Program class that encapsulates the ExampleWebApp startup logic
@@ -34,7 +18,7 @@ public class TestableProgram
     public static async Task<WebApplication> CreateApplicationAsync(string[] args, params string[] modulePackageIds)
     {
         var builder = WebApplication.CreateBuilder(args);
-        
+
         builder.Services.AddRazorPages();
 
         // Load modules if specified
@@ -65,7 +49,7 @@ public class TestableProgram
 /// <summary>
 /// Factory for testing with modules loaded - using the async workaround
 /// </summary>
-public class ModularWebApplicationFactory : WebApplicationFactory<TestProgram>
+public class ModularWebApplicationFactory : WebApplicationFactory<ExampleWebApp.Program>
 {
     private readonly string[] _modulePackageIds;
 
@@ -78,7 +62,7 @@ public class ModularWebApplicationFactory : WebApplicationFactory<TestProgram>
     {
         // We need the async workaround because modules require async loading
         var taskCompletionSource = new TaskCompletionSource<IHost>();
-        
+
         Task.Run(async () =>
         {
             try
@@ -91,7 +75,7 @@ public class ModularWebApplicationFactory : WebApplicationFactory<TestProgram>
                 taskCompletionSource.SetException(ex);
             }
         });
-        
+
         return taskCompletionSource.Task.GetAwaiter().GetResult();
     }
 }
@@ -99,14 +83,14 @@ public class ModularWebApplicationFactory : WebApplicationFactory<TestProgram>
 /// <summary>
 /// Simplified factory for testing without modules
 /// </summary>
-public class BasicWebApplicationFactory : WebApplicationFactory<TestProgram>
+public class BasicWebApplicationFactory : WebApplicationFactory<ExampleWebApp.Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.ConfigureServices(services =>
         {
             services.AddRazorPages();
-            
+
             // Register empty module collection for compatibility
             services.AddSingleton<IReadOnlyCollection<IApplicationPartModule>>(
                 new List<IApplicationPartModule>().AsReadOnly());
@@ -119,7 +103,7 @@ public class BasicWebApplicationFactory : WebApplicationFactory<TestProgram>
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapRazorPages();
-                
+
                 // Add a simple root endpoint for basic tests
                 endpoints.MapGet("/", async context =>
                 {

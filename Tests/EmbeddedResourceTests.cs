@@ -1,8 +1,7 @@
 using Microsoft.Extensions.FileProviders;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System.Reflection;
 
-namespace SharedTools.Tests;
+namespace Tests;
 
 [TestClass]
 public class EmbeddedResourceTests

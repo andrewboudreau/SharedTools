@@ -1,10 +1,6 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-
-using SharedTools.Tests.WebApplicationFactoryTests;
-
 using System.Net;
 
-namespace SharedTools.Tests;
+namespace Tests;
 
 [TestClass]
 public class BasicWebApplicationTests

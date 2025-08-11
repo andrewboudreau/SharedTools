@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 
 using NuGet.Configuration;
 using NuGet.Frameworks;
+using NuGet.Packaging;
 using NuGet.Protocol.Core.Types;
 
 using SharedTools.Web.Services;
@@ -45,11 +46,12 @@ public static class ApplicationPartModuleExtensions
         var mvcBuilder = builder.Services.AddRazorPages();
         var partManager = mvcBuilder.PartManager;
 
-        var logger = CreateTemporaryLogger();
         var processedAssemblies = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         string tempCachePath = Path.Combine(Path.GetTempPath(), "SharedTools_ApplicationPartModulesCache");
         Directory.CreateDirectory(tempCachePath);
+
+        var (logger, loggerFactory) = CreateTemporaryLogger();
         logger?.LogInformation("Using temporary cache directory: {BaseTempPath}", tempCachePath);
 
         var repositories = NuGetPackageService.CreateSourceRepositories(nuGetRepositoryUrls, logger);
@@ -88,7 +90,7 @@ public static class ApplicationPartModuleExtensions
                     Logger = logger
                 };
 
-                var allPackagesToInstall = await nugetService.ResolveDependencyGraphAsync(resolutionContext);
+                var allPackagesToInstall = await NuGetPackageService.ResolveDependencyGraphAsync(resolutionContext);
 
                 if (allPackagesToInstall == null || !allPackagesToInstall.Any())
                 {
@@ -186,6 +188,7 @@ public static class ApplicationPartModuleExtensions
 
         logger?.LogInformation("Registered {ModuleCount} application part modules in total.", moduleRegistry.Modules.Count);
 
+        loggerFactory?.Dispose();
         return builder;
     }
     private static void ProcessAssemblyForModules(AssemblyProcessingContext context)
@@ -413,11 +416,13 @@ public static class ApplicationPartModuleExtensions
         return newRegistry;
     }
 
-    private static ILogger? CreateTemporaryLogger()
+    private static (ILogger?, ILoggerFactory?) CreateTemporaryLogger()
     {
+        ILoggerFactory? loggerFactory = default;
+
         try
         {
-            using var loggerFactory = LoggerFactory.Create(builder =>
+            loggerFactory = LoggerFactory.Create(builder =>
             {
                 builder.ClearProviders();
                 builder.AddConsole(options =>
@@ -429,12 +434,13 @@ public static class ApplicationPartModuleExtensions
 
                 builder.AddDebug();
             });
-            return loggerFactory.CreateLogger(typeof(ApplicationPartModuleExtensions));
+            return (loggerFactory.CreateLogger(typeof(ApplicationPartModuleExtensions)), loggerFactory);
         }
         catch (Exception ex)
         {
-            Console.WriteLine("[Error] Failed to create temporary logger: {ErrorMessage}", ex.Message);
-            return null;
+            loggerFactory?.Dispose();
+            Console.WriteLine("[Error] Failed to create temporary logger: {0}", ex.Message);
+            return (null, null);
         }
     }
 

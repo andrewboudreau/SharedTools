@@ -1,22 +1,30 @@
 using SharedTools.Web.Modules;
 
-var builder = WebApplication.CreateBuilder(args);
+namespace ExampleWebApp;
 
-builder.Services.AddRazorPages();
+public class Program
+{
+    public static async Task Main(string[] args)
+    {
+        var builder = WebApplication.CreateBuilder(args);
 
-// Use the new ApplicationPart-based module system
-// This will download packages, resolve dependencies, and register them as ApplicationParts
-await builder.AddApplicationPartModules([
-    "SharedTools.ExampleWebModule", 
-    "SharedTools.ModuleManagement"
-]);
+        builder.Services.AddRazorPages();
 
-var app = builder.Build();
+        // Use the new ApplicationPart-based module system
+        // This will download packages, resolve dependencies, and register them as ApplicationParts
+        await builder.AddApplicationPartModules([
+            "SharedTools.ExampleWebModule",
+            "SharedTools.ModuleManagement"
+        ]);
 
-app.UseStaticFiles();
-app.MapRazorPages();
+        var app = builder.Build();
 
-// Configure modules - this calls each module's Configure method
-app.UseApplicationPartModules();
+        app.UseStaticFiles();
+        app.MapRazorPages();
 
-app.Run();
+        // Configure modules - this calls each module's Configure method
+        app.UseApplicationPartModules();
+
+        app.Run();
+    }
+}
