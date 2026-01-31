@@ -28,7 +28,16 @@ jobs:
       run: |
         mkdir -p /tmp/local-nuget
         find . -path '*/bin/Release/*.nupkg' -exec cp {} /tmp/local-nuget/ \;
-        dotnet nuget add source /tmp/local-nuget --name local-test-packages
+        ls -la /tmp/local-nuget/
+        cat > SharedTools.Tests/bin/Release/net10.0/nuget.config << 'NUGETEOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <configuration>
+          <packageSources>
+            <add key="local-test" value="/tmp/local-nuget" />
+            <add key="nuget.org" value="https://api.nuget.org/v3/index.json" protocolVersion="3" />
+          </packageSources>
+        </configuration>
+        NUGETEOF
 
     - name: Test
       run: dotnet test --no-build --configuration Release --verbosity normal
