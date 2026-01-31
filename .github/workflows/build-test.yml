@@ -23,6 +23,12 @@ jobs:
     
     - name: Build
       run: dotnet build --no-restore --configuration Release --no-restore --configfile nuget.ci.config
-    
+
+    - name: Setup local NuGet feed for module tests
+      run: |
+        mkdir -p /tmp/local-nuget
+        find . -path '*/bin/Release/*.nupkg' -exec cp {} /tmp/local-nuget/ \;
+        dotnet nuget add source /tmp/local-nuget --name local-test-packages
+
     - name: Test
       run: dotnet test --no-build --configuration Release --verbosity normal
