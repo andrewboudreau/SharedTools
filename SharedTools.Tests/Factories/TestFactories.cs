@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -85,35 +84,18 @@ public class ModularWebApplicationFactory : WebApplicationFactory<TestProgram>
 }
 
 /// <summary>
-/// Simplified factory for testing without modules
+/// Simplified factory for testing without modules.
+/// Overrides CreateHost directly to bypass DeferredHostBuilder entry point discovery.
 /// </summary>
 public class BasicWebApplicationFactory : WebApplicationFactory<TestProgram>
 {
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    protected override IHost CreateHost(IHostBuilder builder)
     {
-        builder.ConfigureServices(services =>
-        {
-            services.AddRazorPages();
-            
-            // Register empty module collection for compatibility
-            services.AddSingleton<IReadOnlyCollection<IApplicationPartModule>>(
-                new List<IApplicationPartModule>().AsReadOnly());
-        });
+        var app = TestableProgram.CreateApplicationAsync([], []).GetAwaiter().GetResult();
 
-        builder.Configure(app =>
-        {
-            app.UseStaticFiles();
-            app.UseRouting();
-            app.UseEndpoints(endpoints =>
-            {
-                endpoints.MapRazorPages();
-                
-                // Add a simple root endpoint for basic tests
-                endpoints.MapGet("/", async context =>
-                {
-                    await context.Response.WriteAsync("<html><body><h1>Test Application</h1></body></html>");
-                });
-            });
-        });
+        app.MapGet("/", () => Results.Content(
+            "<html><body><h1>Test Application</h1></body></html>", "text/html"));
+
+        return app;
     }
 }
