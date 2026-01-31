@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SharedTools.Web.Modules;
@@ -21,7 +23,8 @@ public class TestableProgram
     public static async Task<WebApplication> CreateApplicationAsync(string[] args, params string[] modulePackageIds)
     {
         var builder = WebApplication.CreateBuilder(args);
-        
+        builder.WebHost.UseTestServer();
+
         builder.Services.AddRazorPages();
 
         // Load modules if specified
@@ -63,23 +66,11 @@ public class ModularWebApplicationFactory : WebApplicationFactory<TestProgram>
 
     protected override IHost CreateHost(IHostBuilder builder)
     {
-        // We need the async workaround because modules require async loading
-        var taskCompletionSource = new TaskCompletionSource<IHost>();
-        
-        Task.Run(async () =>
-        {
-            try
-            {
-                var app = await TestableProgram.CreateApplicationAsync([], _modulePackageIds);
-                taskCompletionSource.SetResult(app);
-            }
-            catch (Exception ex)
-            {
-                taskCompletionSource.SetException(ex);
-            }
-        });
-        
-        return taskCompletionSource.Task.GetAwaiter().GetResult();
+        var app = Task.Run(() => TestableProgram.CreateApplicationAsync([], _modulePackageIds))
+            .GetAwaiter().GetResult();
+
+        app.Start();
+        return app;
     }
 }
 
@@ -96,6 +87,7 @@ public class BasicWebApplicationFactory : WebApplicationFactory<TestProgram>
         app.MapGet("/", () => Results.Content(
             "<html><body><h1>Test Application</h1></body></html>", "text/html"));
 
+        app.Start();
         return app;
     }
 }
