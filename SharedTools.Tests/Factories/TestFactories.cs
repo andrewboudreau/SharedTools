@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -42,6 +43,11 @@ public class TestableProgram
 
         var app = builder.Build();
 
+        app.UseExceptionHandler(err => err.Run(async context =>
+        {
+            context.Response.StatusCode = 500;
+            await context.Response.WriteAsync("Internal Server Error");
+        }));
         app.UseStaticFiles();
         app.MapRazorPages();
 
