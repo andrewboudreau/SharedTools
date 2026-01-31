@@ -15,6 +15,9 @@ jobs:
       with:
         fetch-depth: 0
 
+    - name: Start Azurite
+      run: docker run -d -p 10000:10000 -p 10001:10001 -p 10002:10002 mcr.microsoft.com/azure-storage/azurite azurite --skipApiVersionCheck --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
@@ -59,6 +62,20 @@ jobs:
 
     - name: Build
       run: dotnet build --no-restore --configuration Release
+
+    - name: Setup local NuGet feed for module tests
+      run: |
+        mkdir -p /tmp/local-nuget
+        find . -path '*/bin/Release/*.nupkg' -exec cp {} /tmp/local-nuget/ \;
+        cat > SharedTools.Tests/bin/Release/net10.0/nuget.config << 'NUGETEOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <configuration>
+          <packageSources>
+            <add key="local-test" value="/tmp/local-nuget" />
+            <add key="nuget.org" value="https://api.nuget.org/v3/index.json" protocolVersion="3" />
+          </packageSources>
+        </configuration>
+        NUGETEOF
 
     - name: Test
       run: dotnet test --no-build --configuration Release
