@@ -6,11 +6,11 @@ namespace SharedTools.Web.Modules.Logging;
 /// An adapter to pass log messages from the NuGet client libraries
 /// into the standard Microsoft.Extensions.Logging infrastructure.
 /// </summary>
-public class NugetLoggerAdapter : NuGet.Common.ILogger
+public class NuGetLoggerAdapter : NuGet.Common.ILogger
 {
     private readonly Microsoft.Extensions.Logging.ILogger microsoftLogger;
 
-    public NugetLoggerAdapter(Microsoft.Extensions.Logging.ILogger logger)
+    public NuGetLoggerAdapter(Microsoft.Extensions.Logging.ILogger logger)
     {
         microsoftLogger = logger;
     }

@@ -6,15 +6,7 @@
     <Nullable>enable</Nullable>
     <IsTestProject>true</IsTestProject>
     
-    <!-- NuGet Package Information -->
     <IsPackable>false</IsPackable>
-    <PackageId>SharedTools.Tests</PackageId>
-    <Version>1.0.0</Version>
-    <Authors>Andrew Boudreau</Authors>
-    <Description>Shared testing tools and utilities</Description>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/andrewboudreau/SharedTools</RepositoryUrl>
-    <PackageTags>testing;utilities</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

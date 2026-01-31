@@ -23,7 +23,7 @@ public class NuGetPackageService
         _logger = logger as ILogger<NuGetPackageService>;
         if (logger != null)
         {
-            NuGetLogger = new NugetLoggerAdapter(logger);
+            NuGetLogger = new NuGetLoggerAdapter(logger);
         }
     }
     /// <summary>

@@ -18,7 +18,7 @@
 	<!-- NuGet Package Properties -->
 	<PropertyGroup>
 		<PackageId>SharedTools.ExampleWebModule</PackageId>
-		<Version>$(VersionPrefix)</Version>
+		<Version>1.0.0</Version>
 		<Authors>Andrew Boudreau</Authors>
 		<Description>An example module for SharedTools.Web ApplicationPartModules.</Description>
 		<PackageTags>example,applicationpart, webmodule</PackageTags>
@@ -31,7 +31,7 @@
 		<EmbeddedResource Include="wwwroot\**\*" />
 
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
-		<PackageReference Include="Azure.Storage.Blobs" Version="12.26.0-beta.1" />
+		<PackageReference Include="Azure.Storage.Blobs" Version="12.27.0" />
 
 		<ProjectReference Include="..\SharedTools.Web\SharedTools.Web.csproj">
 			<PrivateAssets>all</PrivateAssets>

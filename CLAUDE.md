@@ -111,11 +111,11 @@ The library provides a complete solution for loading ASP.NET Core web modules fr
 1. **Dependency Resolution**: Recursively resolve all NuGet package dependencies using prioritized repository search
 2. **Download**: Download packages from configured NuGet sources with fallback to nuget.org
 3. **Flat Extraction**: Extract all assemblies to a single "flat" directory for proper dependency resolution
-4. **Isolated Loading**: Use WebModuleLoadContext to load main assembly with selective delegation
-5. **Type Discovery**: Find concrete types implementing IWebModule interface
+4. **Isolated Loading**: Use ModuleAssemblyLoadContext to load main assembly with selective delegation
+5. **Type Discovery**: Find concrete types implementing IApplicationPartModule interface
 6. **ASP.NET Integration**: Register assemblies with ApplicationPartManager for MVC/Razor discovery
-7. **Service Configuration**: Call ConfigureBuilder() for service registration
-8. **Pipeline Configuration**: Call ConfigureApp() for middleware/endpoint setup
+7. **Service Configuration**: Call ConfigureServices() for service registration
+8. **Pipeline Configuration**: Call Configure() for middleware/endpoint setup
 
 ### Static Asset Handling
 
@@ -133,7 +133,7 @@ The library provides a complete solution for loading ASP.NET Core web modules fr
 ### Configuration Sources
 
 The system supports multiple NuGet configuration approaches:
-1. Explicit repository URLs passed to `AddWebModules()`
+1. Explicit repository URLs passed to `AddApplicationPartModules()`
 2. Discovery from `nuget.config` files in the project directory
 3. Fallback to default nuget.org source
 

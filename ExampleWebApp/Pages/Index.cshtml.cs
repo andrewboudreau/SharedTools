@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
-namespace ProjectGeoShot.Web.Pages
+namespace ExampleWebApp.Pages
 {
     public class IndexModel : PageModel
     {

@@ -2,104 +2,90 @@ name: Publish NuGet Packages
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [ master ]
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-        contents: write
-        
+      contents: write
+
     steps:
-    - uses: actions/checkout@v3
-    
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
     - name: Setup .NET
-      uses: actions/setup-dotnet@v3
+      uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 10.0.x
-    
-    # Extract version number from tag (assuming tags like v9.0.1)
-    - name: Extract version from tag
-      id: extract_version
+
+    - name: Compute next version
+      id: version
       run: |
-        # Remove the "refs/tags/" prefix and then the "v" prefix.
-        TAG=${GITHUB_REF#refs/tags/}
-        VERSION=${TAG#v}
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "Tag is: $TAG, version is: $VERSION"
-    
-    # Update version in csproj files
-    - name: Update csproj version
+        # Find the latest v*.*.* tag by semantic version order
+        LATEST_TAG=$(git tag --list 'v*.*.*' --sort=-version:refname | head -n 1)
+
+        if [ -z "$LATEST_TAG" ]; then
+          echo "No version tags found. Starting at 0.1.0"
+          NEW_VERSION="0.1.0"
+        else
+          echo "Latest tag: $LATEST_TAG"
+          CURRENT=${LATEST_TAG#v}
+          MAJOR=$(echo "$CURRENT" | cut -d. -f1)
+          MINOR=$(echo "$CURRENT" | cut -d. -f2)
+          BUILD=$(echo "$CURRENT" | cut -d. -f3)
+          BUILD=$((BUILD + 1))
+          NEW_VERSION="$MAJOR.$MINOR.$BUILD"
+        fi
+
+        echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        echo "New version: v$NEW_VERSION"
+
+    - name: Update csproj versions
       run: |
-        VERSION=${{ steps.extract_version.outputs.version }}
+        VERSION=${{ steps.version.outputs.version }}
         echo "Updating csproj files to version $VERSION"
-        
-        # Use sed to update the Version tag in csproj files
-        sed -i "s/<Version>[0-9]\+\.[0-9]\+\.[0-9]\+\(<.*\)\?<\/Version>/<Version>$VERSION<\/Version>/g" SharedTools.Web/SharedTools.Web.csproj
-        sed -i "s/<Version>[0-9]\+\.[0-9]\+\.[0-9]\+\(<.*\)\?<\/Version>/<Version>$VERSION<\/Version>/g" SharedTools.ModuleManagement/SharedTools.ModuleManagement.csproj
-        sed -i "s/<Version>[0-9]\+\.[0-9]\+\.[0-9]\+\(<.*\)\?<\/Version>/<Version>$VERSION<\/Version>/g" SharedTools.Tests/SharedTools.Tests.csproj
-        
-        # Verify the changes
+
+        sed -i "s/<Version>[0-9]\+\.[0-9]\+\.[0-9]\+/<Version>$VERSION/g" SharedTools.Web/SharedTools.Web.csproj
+        sed -i "s/<Version>[0-9]\+\.[0-9]\+\.[0-9]\+/<Version>$VERSION/g" SharedTools.ModuleManagement/SharedTools.ModuleManagement.csproj
+
         echo "Updated versions:"
         grep -o "<Version>.*</Version>" SharedTools.Web/SharedTools.Web.csproj
         grep -o "<Version>.*</Version>" SharedTools.ModuleManagement/SharedTools.ModuleManagement.csproj
-        grep -o "<Version>.*</Version>" SharedTools.Tests/SharedTools.Tests.csproj
-    
+
     - name: Restore dependencies
       run: dotnet restore --configfile nuget.ci.config
-    
+
     - name: Build
-      run: dotnet build --no-restore --configuration Release --no-restore --configfile nuget.ci.config
-    
+      run: dotnet build --no-restore --configuration Release
+
     - name: Test
       run: dotnet test --no-build --configuration Release
-    
+
     - name: Pack SharedTools.Web
       run: dotnet pack SharedTools.Web/SharedTools.Web.csproj --configuration Release --no-build --output nuget-packages
-      
+
     - name: Pack SharedTools.ModuleManagement
       run: dotnet pack SharedTools.ModuleManagement/SharedTools.ModuleManagement.csproj --configuration Release --no-build --output nuget-packages
-    
-    - name: Pack SharedTools.Tests
-      run: dotnet pack SharedTools.Tests/SharedTools.Tests.csproj --configuration Release --no-build --output nuget-packages
-    
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Create tag
+      run: |
+        git tag "v${{ steps.version.outputs.version }}"
+        git push origin "v${{ steps.version.outputs.version }}"
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
       with:
-        tag_name: v${{ steps.extract_version.outputs.version }}
-        release_name: Release v${{ steps.extract_version.outputs.version }}
-        draft: false
-        prerelease: false
-    
-    - name: Publish package to NuGet
-      if: github.ref_type == 'tag'
+        tag_name: v${{ steps.version.outputs.version }}
+        name: Release v${{ steps.version.outputs.version }}
+        files: nuget-packages/*.nupkg
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Publish to NuGet
       run: |
         dotnet nuget push "./nuget-packages/*.nupkg" \
           --api-key ${{ secrets.NUGET_API_KEY }} \
           --source https://api.nuget.org/v3/index.json \
           --skip-duplicate
-      
-    # Upload the NuGet package as a release asset using the version number
-    - name: Upload Web NuGet Package as Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./nuget-packages/SharedTools.Web.${{ steps.extract_version.outputs.version }}.nupkg
-        asset_name: SharedTools.Web.${{ steps.extract_version.outputs.version }}.nupkg
-        asset_content_type: application/octet-stream
-    
-    - name: Upload Tests NuGet Package as Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./nuget-packages/SharedTools.Tests.${{ steps.extract_version.outputs.version }}.nupkg
-        asset_name: SharedTools.Tests.${{ steps.extract_version.outputs.version }}.nupkg
-        asset_content_type: application/octet-stream
