@@ -69,6 +69,9 @@ public class ModularWebApplicationFactory : WebApplicationFactory<TestProgram>
         var app = Task.Run(() => TestableProgram.CreateApplicationAsync([], _modulePackageIds))
             .GetAwaiter().GetResult();
 
+        app.MapGet("/", () => Results.Content(
+            "<html><body><h1>Test Application</h1></body></html>", "text/html"));
+
         app.Start();
         return app;
     }
