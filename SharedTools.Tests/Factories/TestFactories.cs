@@ -9,21 +9,9 @@ using SharedTools.Web.Modules;
 namespace SharedTools.Tests.WebApplicationFactoryTests;
 
 /// <summary>
-/// Program class for WebApplicationFactory
+/// Marker class for WebApplicationFactory entry point discovery.
 /// </summary>
-public class TestProgram
-{
-    public static void Main(string[] args)
-    {
-        // This is only used by WebApplicationFactory
-        var builder = WebApplication.CreateBuilder(args);
-        builder.Services.AddRazorPages();
-        var app = builder.Build();
-        app.UseStaticFiles();
-        app.MapRazorPages();
-        app.Run();
-    }
-}
+public class TestProgram { }
 
 /// <summary>
 /// Testable Program class that encapsulates the ExampleWebApp startup logic
