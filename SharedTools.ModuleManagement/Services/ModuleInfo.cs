@@ -9,5 +9,6 @@ public class ModuleInfo
     public string? EntryPoint { get; set; }
     public List<string> Routes { get; set; } = [];
     public List<string> StaticAssets { get; set; } = [];
+    public string? LatestNuGetVersion { get; set; }
     public DateTime LoadedAt { get; set; } = DateTime.UtcNow;
 }

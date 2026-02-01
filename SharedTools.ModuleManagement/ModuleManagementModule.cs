@@ -14,6 +14,11 @@ public class ModuleManagementModule : IApplicationPartModule
     {
         // Register our internal management system for the UI
         services.AddSingleton<ModuleManagementSystem>();
+        services.AddHttpClient<INuGetVersionService, NuGetVersionService>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(5);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("SharedTools.ModuleManagement/1.0");
+        });
         services.AddRazorPages();
     }
 

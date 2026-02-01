@@ -4,9 +4,22 @@
     ViewData["Title"] = "Module Management";
 }
 
+@functions {
+    static string NormalizeVersion(string version)
+    {
+        // Strip trailing .0 from 4-part assembly versions (e.g. "1.2.3.0" -> "1.2.3")
+        var parts = version.Split('.');
+        if (parts.Length == 4 && parts[3] == "0")
+        {
+            return string.Join('.', parts.Take(3));
+        }
+        return version;
+    }
+}
+
 <div class="container mt-4">
     <h1 class="mb-4">Loaded Modules</h1>
-    
+
     <div class="alert alert-info">
         <strong>@Model.ModuleCount</strong> modules loaded at startup
     </div>
@@ -14,6 +27,10 @@
     <div class="row">
         @foreach (var module in Model.Modules)
         {
+            var normalizedVersion = NormalizeVersion(module.Version);
+            var hasLatest = module.LatestNuGetVersion != null;
+            var isCurrent = hasLatest && normalizedVersion == module.LatestNuGetVersion;
+
             <div class="col-md-6 col-lg-4 mb-4">
                 <div class="card h-100">
                     <div class="card-header">
@@ -22,7 +39,20 @@
                     <div class="card-body">
                         <p class="text-muted small mb-2">
                             <strong>Assembly:</strong> @module.AssemblyName<br/>
-                            <strong>Version:</strong> @module.Version<br/>
+                            <strong>Version:</strong> @normalizedVersion
+                            @if (isCurrent)
+                            {
+                                <span class="badge bg-success ms-1">current</span>
+                            }
+                            else if (hasLatest)
+                            {
+                                <span class="badge bg-warning text-dark ms-1">@module.LatestNuGetVersion available</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary ms-1">offline</span>
+                            }
+                            <br/>
                             <strong>Loaded:</strong> @module.LoadedAt.ToString("g")
                         </p>
                         @if (!string.IsNullOrEmpty(module.Description))
@@ -36,6 +66,10 @@
                             <a href="@module.EntryPoint" class="btn btn-primary btn-sm">Visit Module</a>
                         }
                         <a href="/_modules/details/@module.AssemblyName" class="btn btn-secondary btn-sm">Details</a>
+                        <a href="https://www.nuget.org/packages/@module.AssemblyName"
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           class="btn btn-outline-info btn-sm">NuGet</a>
                     </div>
                 </div>
             </div>
