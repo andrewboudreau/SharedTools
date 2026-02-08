@@ -53,7 +53,7 @@
                                 <span class="badge bg-secondary ms-1">offline</span>
                             }
                             <br/>
-                            <strong>Loaded:</strong> @module.LoadedAt.ToString("g")
+                            <strong>Loaded:</strong> @TimeZoneInfo.ConvertTimeFromUtc(module.LoadedAt, TimeZoneInfo.FindSystemTimeZoneById("America/Chicago")).ToString("g") CT
                         </p>
                         @if (!string.IsNullOrEmpty(module.Description))
                         {
