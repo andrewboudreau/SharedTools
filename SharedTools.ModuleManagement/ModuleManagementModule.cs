@@ -62,6 +62,24 @@ public class ModuleManagementModule : IApplicationPartModule
                 managementSystem.RegisterModule(moduleInfo);
             }
         }
+
+        // Surface modules that failed to load, so they're visible instead of silently dropped.
+        var registry = app.Services.GetService<ModuleRegistry>();
+        if (registry != null)
+        {
+            foreach (var failure in registry.Failures)
+            {
+                managementSystem.RegisterModule(new ModuleInfo
+                {
+                    Name = failure.ModuleId,
+                    AssemblyName = failure.ModuleId,
+                    Version = "—",
+                    Description = $"Failed during {failure.Phase}.",
+                    Status = ModuleStatus.Failed,
+                    Error = failure.Error
+                });
+            }
+        }
     }
 
     public void ConfigureApplicationParts(ApplicationPartManager partManager)

@@ -47,7 +47,32 @@ public class ModuleRegistry
     public List<IApplicationPartModule> Modules { get; } = [];
     public List<(string ModuleName, IFileProvider FileProvider)> StaticFileProviders { get; } = [];
     public List<ModuleAssemblyLoadContext> AssemblyLoadContexts { get; } = [];
+
+    /// <summary>
+    /// Modules that failed to load. Captured instead of being silently dropped so the
+    /// management hub (and logs) can show what broke and why.
+    /// </summary>
+    public List<ModuleFailure> Failures { get; } = [];
 }
+
+/// <summary>
+/// The lifecycle phase at which a module failed to load.
+/// </summary>
+public enum ModuleLoadPhase
+{
+    Resolve,
+    Load,
+    ConfigureServices,
+    Configure
+}
+
+/// <summary>
+/// A module that failed to load, captured for diagnostics and the management hub.
+/// </summary>
+/// <param name="ModuleId">The package id or module type that failed.</param>
+/// <param name="Phase">The lifecycle phase at which it failed.</param>
+/// <param name="Error">The failure message.</param>
+public sealed record ModuleFailure(string ModuleId, ModuleLoadPhase Phase, string Error);
 
 /// <summary>
 /// Context for NuGet package operations.

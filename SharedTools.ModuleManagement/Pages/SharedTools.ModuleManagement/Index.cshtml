@@ -1,5 +1,6 @@
 @page
 @model SharedTools.ModuleManagement.Pages.Modules.IndexModel
+@using SharedTools.ModuleManagement.Services
 @{
     ViewData["Title"] = "Module Management";
 }
@@ -18,15 +19,46 @@
 }
 
 <div class="container mt-4">
-    <h1 class="mb-4">Loaded Modules</h1>
+    <h1 class="mb-4">Modules</h1>
+
+    @{
+        var failedCount = Model.Modules.Count(m => m.Status == ModuleStatus.Failed);
+        var loadedCount = Model.Modules.Count(m => m.Status == ModuleStatus.Loaded);
+    }
 
     <div class="alert alert-info">
-        <strong>@Model.ModuleCount</strong> modules loaded at startup
+        <strong>@loadedCount</strong> module@(loadedCount == 1 ? "" : "s") loaded at startup
     </div>
+    @if (failedCount > 0)
+    {
+        <div class="alert alert-danger">
+            <strong>@failedCount</strong> module@(failedCount == 1 ? "" : "s") failed to load
+        </div>
+    }
 
     <div class="row">
         @foreach (var module in Model.Modules)
         {
+            if (module.Status == ModuleStatus.Failed)
+            {
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card h-100 border-danger">
+                        <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">@module.Name</h5>
+                            <span class="badge bg-light text-danger">failed</span>
+                        </div>
+                        <div class="card-body">
+                            <p class="card-text mb-2">@module.Description</p>
+                            @if (!string.IsNullOrEmpty(module.Error))
+                            {
+                                <pre class="small text-danger mb-0" style="white-space: pre-wrap; word-break: break-word;">@module.Error</pre>
+                            }
+                        </div>
+                    </div>
+                </div>
+                continue;
+            }
+
             var normalizedVersion = NormalizeVersion(module.Version);
             var hasLatest = module.LatestNuGetVersion != null;
             var isCurrent = hasLatest && normalizedVersion == module.LatestNuGetVersion;

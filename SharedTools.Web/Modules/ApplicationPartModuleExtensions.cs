@@ -93,6 +93,7 @@ public static class ApplicationPartModuleExtensions
                 if (allPackagesToInstall == null || !allPackagesToInstall.Any())
                 {
                     logger?.LogError("Could not resolve dependency graph for {PackageId}.", packageId);
+                    moduleRegistry.Failures.Add(new ModuleFailure(packageId, ModuleLoadPhase.Resolve, "Could not resolve dependency graph."));
                     continue;
                 }
 
@@ -130,6 +131,7 @@ public static class ApplicationPartModuleExtensions
                 if (!File.Exists(mainAssemblyPath))
                 {
                     logger?.LogError("Could not find main assembly {AssemblyPath} after extraction.", mainAssemblyPath);
+                    moduleRegistry.Failures.Add(new ModuleFailure(packageId, ModuleLoadPhase.Load, "Main assembly not found after extraction."));
                     continue;
                 }
 
@@ -144,6 +146,7 @@ public static class ApplicationPartModuleExtensions
                 catch (Exception ex)
                 {
                     logger?.LogError(ex, "Failed to load assembly from {MainAssemblyPath}", mainAssemblyPath);
+                    moduleRegistry.Failures.Add(new ModuleFailure(packageId, ModuleLoadPhase.Load, ex.Message));
                     continue;
                 }
 
@@ -177,6 +180,7 @@ public static class ApplicationPartModuleExtensions
             catch (Exception ex)
             {
                 logger?.LogError(ex, "An unhandled error occurred while processing package {PackageId}", packageId);
+                moduleRegistry.Failures.Add(new ModuleFailure(packageId, ModuleLoadPhase.Load, ex.Message));
             }
         }
 
@@ -254,6 +258,8 @@ public static class ApplicationPartModuleExtensions
                 context.Logger?.LogError(ex,
                     "Failed to create instance or configure module {ModuleTypeName} from assembly {AssemblyName}\r\n{Error}",
                     moduleType.FullName, context.Assembly.FullName ?? "UnknownAssembly", ex.Message);
+                context.ModuleRegistry.Failures.Add(new ModuleFailure(
+                    moduleType.FullName ?? context.ModuleName, ModuleLoadPhase.ConfigureServices, ex.Message));
             }
         }
 
@@ -371,6 +377,7 @@ public static class ApplicationPartModuleExtensions
             catch (Exception ex)
             {
                 logger?.LogError(ex, "Error configuring module {ModuleName}", module.Name);
+                moduleRegistry?.Failures.Add(new ModuleFailure(module.Name, ModuleLoadPhase.Configure, ex.Message));
             }
         }
 
