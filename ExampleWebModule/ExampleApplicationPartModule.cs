@@ -17,10 +17,8 @@ public class ExampleApplicationPartModule : IApplicationPartModule
 
     public void ConfigureServices(IServiceCollection services)
     {
-        // Configure strongly-typed options from IConfiguration
-        services.AddOptions<AzureBlobStorageOptions>()
-            .BindConfiguration(AzureBlobStorageOptions.SectionName)
-            .ValidateDataAnnotations()
+        // Bind strongly-typed options from this module's own config namespace (Modules:ExampleWebModule).
+        services.AddModuleOptions<AzureBlobStorageOptions>(Name)
             .ValidateOnStart();
 
         // Register module-specific services

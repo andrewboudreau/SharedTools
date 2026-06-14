@@ -4,8 +4,6 @@ namespace ExampleWebModule;
 
 public class AzureBlobStorageOptions
 {
-    public const string SectionName = "ExampleWebModule:AzureBlob";
-
     [Required(AllowEmptyStrings = false)]
     public string ConnectionString { get; set; } = default!;
 
