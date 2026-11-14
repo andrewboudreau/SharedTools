@@ -1,0 +1,41 @@
+name: Deploy
+
+# Uploads the module to the module host as a drop on every push to master, and waits until the host
+# reports it loaded (the run fails if it failed; the host keeps serving the previous drop).
+#
+# One-time setup: a `production` environment that only the default branch (here master) can use,
+# holding the MODULE_UPLOAD_KEY secret:
+#   gh api -X PUT repos/{owner}/{repo}/environments/production -F "deployment_branch_policy[protected_branches]=false" -F "deployment_branch_policy[custom_branch_policies]=true"
+#   gh api -X POST repos/{owner}/{repo}/environments/production/deployment-branch-policies -f name=master -f type=branch
+#   gh secret set MODULE_UPLOAD_KEY --env production       # paste the key when prompted
+# Optionally set the repository variable MODULE_HOST_URL (default https://modules.blogfor.net).
+# The key lets the holder run code on the host: keep it in the environment, never in the repo.
+
+on:
+  push:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.x'
+
+      - name: Publish and upload
+        shell: pwsh
+        env:
+          MODULE_UPLOAD_KEY: ${{ secrets.MODULE_UPLOAD_KEY }}
+          MODULE_HOST_URL: ${{ vars.MODULE_HOST_URL }}
+        run: ./deploy.ps1
