@@ -17,7 +17,7 @@ SharedTools enables ASP.NET Core applications to dynamically load and integrate 
 
 ### Prerequisites
 
-- .NET 10.0 or later
+- .NET 11.0 or later
 - ASP.NET Core host application with SharedTools.Web
 
 ### Installation

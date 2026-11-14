@@ -11,15 +11,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Start Azurite
       run: docker run -d -p 10000:10000 -p 10001:10001 -p 10002:10002 mcr.microsoft.com/azure-storage/azurite azurite --skipApiVersionCheck --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0
     
     - name: Setup .NET
-      uses: actions/setup-dotnet@v3
+      uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: 10.0.x
+        dotnet-version: 11.0.x
     
     - name: Restore dependencies
       run: dotnet restore --configfile nuget.ci.config
@@ -32,7 +32,7 @@ jobs:
         mkdir -p /tmp/local-nuget
         find . -path '*/bin/Release/*.nupkg' -exec cp {} /tmp/local-nuget/ \;
         ls -la /tmp/local-nuget/
-        cat > SharedTools.Tests/bin/Release/net10.0/nuget.config << 'NUGETEOF'
+        cat > SharedTools.Tests/bin/Release/net11.0/nuget.config << 'NUGETEOF'
         <?xml version="1.0" encoding="utf-8"?>
         <configuration>
           <packageSources>

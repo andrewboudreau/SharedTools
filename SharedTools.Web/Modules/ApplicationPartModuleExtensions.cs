@@ -20,7 +20,9 @@ namespace SharedTools.Web.Modules;
 /// </summary>
 public static class ApplicationPartModuleExtensions
 {
-    private static NuGetFramework DefaultTargetFramework { get; } = new NuGetFramework(".NETCoreApp", new Version(10, 0));
+    // Match the host's runtime so modules resolve the same TFM the host runs on (e.g. net11.0).
+    private static NuGetFramework DefaultTargetFramework { get; } =
+        new NuGetFramework(FrameworkConstants.FrameworkIdentifiers.NetCoreApp, new Version(Environment.Version.Major, Environment.Version.Minor));
 
     private static NuGet.Common.ILogger NuGetLogger { get; set; } = NuGet.Common.NullLogger.Instance;
     /// <summary>
@@ -103,11 +105,7 @@ public static class ApplicationPartModuleExtensions
                 string flatExtractionPath = Path.Combine(tempCachePath,
                     $"{rootPackageIdentity.Id}.{rootPackageIdentity.Version}_flat");
 
-                if (Directory.Exists(flatExtractionPath))
-                {
-                    Directory.Delete(flatExtractionPath, recursive: true);
-                }
-                Directory.CreateDirectory(flatExtractionPath);
+                flatExtractionPath = PrepareExtractionDirectory(flatExtractionPath, logger);
 
                 logger?.LogInformation("Extracting all package dependencies to flat directory: {Path}", flatExtractionPath);
 
@@ -418,6 +416,32 @@ public static class ApplicationPartModuleExtensions
         var newRegistry = new ModuleRegistry();
         services.AddSingleton(newRegistry);
         return newRegistry;
+    }
+
+    /// <summary>
+    /// Clears and recreates the extraction directory. If files in it are still locked by a module
+    /// already loaded in this process (Windows keeps loaded assemblies locked), extracts to a fresh
+    /// sibling directory instead of failing the load.
+    /// </summary>
+    private static string PrepareExtractionDirectory(string path, ILogger? logger)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+            {
+                Directory.Delete(path, recursive: true);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            var fallback = $"{path}_{Guid.NewGuid():N}";
+            logger?.LogWarning("Extraction directory {Path} is in use ({Reason}); extracting to {Fallback} instead.",
+                path, ex.Message, fallback);
+            path = fallback;
+        }
+
+        Directory.CreateDirectory(path);
+        return path;
     }
 
     private static ILogger? CreateTemporaryLogger()

@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
 	<PropertyGroup>
 		<AssemblyName>SharedTools.ExampleWebModule</AssemblyName>
-		<TargetFramework>net10.0</TargetFramework>
+		<TargetFramework>net11.0</TargetFramework>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 		
@@ -31,7 +31,7 @@
 		<EmbeddedResource Include="wwwroot\**\*" />
 
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
-		<PackageReference Include="Azure.Storage.Blobs" Version="12.27.0" />
+		<PackageReference Include="Azure.Storage.Blobs" Version="12.30.1" />
 
 		<ProjectReference Include="..\SharedTools.Web\SharedTools.Web.csproj">
 			<PrivateAssets>all</PrivateAssets>

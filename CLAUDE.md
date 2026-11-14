@@ -8,7 +8,7 @@ SharedTools is a dynamic web module loading library for ASP.NET Core that enable
 
 ## Project Structure
 
-This is a .NET 10.0 solution with the following projects:
+This is a .NET 11.0 solution with the following projects:
 
 - **SharedTools.Web**: The core library providing dynamic NuGet package loading and ApplicationPart integration
   - Handles NuGet package discovery, download, and extraction

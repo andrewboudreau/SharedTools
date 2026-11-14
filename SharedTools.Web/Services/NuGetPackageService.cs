@@ -42,6 +42,11 @@ public class NuGetPackageService
                 try
                 {
                     var findResource = await repo.GetResourceAsync<FindPackageByIdResource>();
+                    if (findResource == null)
+                    {
+                        continue;
+                    }
+
                     var versions = await findResource.GetAllVersionsAsync(pkgId, context.CacheContext,
                     NuGetLogger, CancellationToken.None);
 
@@ -105,7 +110,7 @@ public class NuGetPackageService
             currentPackage, sourceRepo.PackageSource.Name);
 
             var depInfoResource = await sourceRepo.GetResourceAsync<DependencyInfoResource>();
-            var dependencyInfo = await depInfoResource.ResolvePackage(currentPackage, context.Framework,
+            var dependencyInfo = depInfoResource == null ? null : await depInfoResource.ResolvePackage(currentPackage, context.Framework,
             context.CacheContext, NuGetLogger, CancellationToken.None);
 
             if (dependencyInfo == null)
@@ -218,7 +223,7 @@ public class NuGetPackageService
 
             var (downloadResult, _) = await FindAndDownloadPackageAsync(downloadContext);
 
-            if (downloadResult == null)
+            if (downloadResult?.PackageStream == null)
             {
                 context.Logger?.LogWarning("Failed to download dependency package {PackageId}", packageIdentity);
                 continue;

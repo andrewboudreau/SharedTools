@@ -17,7 +17,7 @@ SharedTools enables ASP.NET Core applications to dynamically load and integrate 
 
 ## Project Structure
 
-This is a .NET 10.0 solution with the following projects:
+This is a .NET 11.0 solution with the following projects:
 
 - **SharedTools.Web**: The core library providing dynamic NuGet package loading and ApplicationPart integration
   - Handles NuGet package discovery, download, and extraction
@@ -124,7 +124,7 @@ Below is a template for your module's `.csproj` file. Pay close attention to the
 
   <PropertyGroup>
     <!-- IMPORTANT: Target the same .NET version as the host application. -->
-    <TargetFramework>net10.0</TargetFramework> 
+    <TargetFramework>net11.0</TargetFramework> 
     
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
