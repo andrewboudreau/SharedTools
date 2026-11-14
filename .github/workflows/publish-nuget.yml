@@ -3,6 +3,11 @@ name: Publish NuGet Packages
 on:
   push:
     branches: [ master ]
+    # Template and docs changes don't change the packages; don't cut a release for them.
+    paths-ignore:
+      - 'templates/**'
+      - 'docs/**'
+      - '**/*.md'
 
 jobs:
   publish:
