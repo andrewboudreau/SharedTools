@@ -9,6 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write  # NuGet trusted publishing (OIDC)
 
     steps:
     - uses: actions/checkout@v4
@@ -96,6 +97,20 @@ jobs:
     - name: Pack SharedTools.ModuleManagement
       run: dotnet pack SharedTools.ModuleManagement/SharedTools.ModuleManagement.csproj --configuration Release --no-build --output nuget-packages
 
+    - name: NuGet login (trusted publishing)
+      id: nuget-login
+      uses: NuGet/login@v1
+      with:
+        user: andrewboudreau
+
+    # Publish before tagging so a failed push doesn't leave an orphaned tag/release
+    - name: Publish to NuGet
+      run: |
+        dotnet nuget push "./nuget-packages/*.nupkg" \
+          --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" \
+          --source https://api.nuget.org/v3/index.json \
+          --skip-duplicate
+
     - name: Create tag
       run: |
         git tag "v${{ steps.version.outputs.version }}"
@@ -109,10 +124,3 @@ jobs:
         files: nuget-packages/*.nupkg
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Publish to NuGet
-      run: |
-        dotnet nuget push "./nuget-packages/*.nupkg" \
-          --api-key ${{ secrets.NUGET_API_KEY }} \
-          --source https://api.nuget.org/v3/index.json \
-          --skip-duplicate
