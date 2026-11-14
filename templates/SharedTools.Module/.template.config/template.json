@@ -16,7 +16,7 @@
     "sharedToolsVersion": {
       "type": "parameter",
       "datatype": "text",
-      "defaultValue": "1.4.4",
+      "defaultValue": "2.0.0",
       "replaces": "SHAREDTOOLS_VERSION",
       "description": "Version of the SharedTools.Web package to reference."
     }

@@ -32,7 +32,7 @@ This creates a module project `MyIdea` with:
 Reference a specific SharedTools.Web version with `--sharedToolsVersion`:
 
 ```bash
-dotnet new sharedmodule -n MyIdea --sharedToolsVersion 1.4.4
+dotnet new sharedmodule -n MyIdea --sharedToolsVersion 2.0.0
 ```
 
 Build it, and in Debug it packs to `C:\LocalNuGet` so a host can load it via

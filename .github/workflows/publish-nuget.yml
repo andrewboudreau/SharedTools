@@ -29,17 +29,27 @@ jobs:
         # Find the latest v*.*.* tag by semantic version order
         LATEST_TAG=$(git tag --list 'v*.*.*' --sort=-version:refname | head -n 1)
 
+        # Base version declared in the csproj; raise it there to cut a new major/minor
+        BASE_VERSION=$(sed -n 's|.*<Version>\([0-9]*\.[0-9]*\.[0-9]*\)</Version>.*|\1|p' SharedTools.Web/SharedTools.Web.csproj | head -n 1)
+        echo "csproj base version: $BASE_VERSION"
+
         if [ -z "$LATEST_TAG" ]; then
-          echo "No version tags found. Starting at 0.1.0"
-          NEW_VERSION="0.1.0"
+          echo "No version tags found. Using csproj version"
+          NEW_VERSION="$BASE_VERSION"
         else
           echo "Latest tag: $LATEST_TAG"
           CURRENT=${LATEST_TAG#v}
-          MAJOR=$(echo "$CURRENT" | cut -d. -f1)
-          MINOR=$(echo "$CURRENT" | cut -d. -f2)
-          BUILD=$(echo "$CURRENT" | cut -d. -f3)
-          BUILD=$((BUILD + 1))
-          NEW_VERSION="$MAJOR.$MINOR.$BUILD"
+          HIGHEST=$(printf '%s\n%s\n' "$CURRENT" "$BASE_VERSION" | sort -V | tail -n 1)
+          if [ "$BASE_VERSION" = "$HIGHEST" ] && [ "$BASE_VERSION" != "$CURRENT" ]; then
+            echo "csproj version is ahead of latest tag; releasing it as-is"
+            NEW_VERSION="$BASE_VERSION"
+          else
+            MAJOR=$(echo "$CURRENT" | cut -d. -f1)
+            MINOR=$(echo "$CURRENT" | cut -d. -f2)
+            BUILD=$(echo "$CURRENT" | cut -d. -f3)
+            BUILD=$((BUILD + 1))
+            NEW_VERSION="$MAJOR.$MINOR.$BUILD"
+          fi
         fi
 
         echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT

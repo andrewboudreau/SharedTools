@@ -8,7 +8,7 @@
 		<!-- NuGet Package Information -->
 		<IsPackable>true</IsPackable>
 		<PackageId>SharedTools.Web</PackageId>
-		<Version>1.0.0</Version>
+		<Version>2.0.0</Version>
 		<Authors>Andrew Boudreau</Authors>
 		<Description>Shared web tools and utilities</Description>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
