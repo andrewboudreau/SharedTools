@@ -59,37 +59,36 @@
                 continue;
             }
 
-            var normalizedVersion = NormalizeVersion(module.Version);
-            var hasLatest = module.LatestNuGetVersion != null;
-            var isCurrent = hasLatest && normalizedVersion == module.LatestNuGetVersion;
-
             <div class="col-md-6 col-lg-4 mb-4">
-                <div class="card h-100">
-                    <div class="card-header">
+                <div class="card h-100 @(module.Warning is null ? "" : "border-warning")">
+                    <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">@module.Name</h5>
+                        @if (module.Warning is not null)
+                        {
+                            <span class="badge bg-warning text-dark">rolled back</span>
+                        }
                     </div>
                     <div class="card-body">
                         <p class="text-muted small mb-2">
                             <strong>Assembly:</strong> @module.AssemblyName<br/>
-                            <strong>Version:</strong> @normalizedVersion
-                            @if (isCurrent)
+                            <strong>Version:</strong> @NormalizeVersion(module.Version)<br/>
+                            @if (!string.IsNullOrEmpty(module.Drop))
                             {
-                                <span class="badge bg-success ms-1">current</span>
+                                <strong>Drop:</strong> <code>@module.Drop</code><br/>
                             }
-                            else if (hasLatest)
+                            @if (!string.IsNullOrEmpty(module.Source))
                             {
-                                <span class="badge bg-warning text-dark ms-1">@module.LatestNuGetVersion available</span>
+                                <strong>Source:</strong> @module.Source<br/>
                             }
-                            else
-                            {
-                                <span class="badge bg-secondary ms-1">offline</span>
-                            }
-                            <br/>
                             <strong>Loaded:</strong> @TimeZoneInfo.ConvertTimeFromUtc(module.LoadedAt, TimeZoneInfo.FindSystemTimeZoneById("America/Chicago")).ToString("g") CT
                         </p>
                         @if (!string.IsNullOrEmpty(module.Description))
                         {
                             <p class="card-text">@module.Description</p>
+                        }
+                        @if (module.Warning is not null)
+                        {
+                            <pre class="small text-warning-emphasis mb-0" style="white-space: pre-wrap; word-break: break-word;">@module.Warning</pre>
                         }
                     </div>
                     <div class="card-footer">
@@ -97,10 +96,6 @@
                         {
                             <a href="@module.EntryPoint" class="btn btn-primary btn-sm">Visit Module</a>
                         }
-                        <a href="https://www.nuget.org/packages/@module.AssemblyName"
-                           target="_blank"
-                           rel="noopener noreferrer"
-                           class="btn btn-outline-info btn-sm">NuGet</a>
                     </div>
                 </div>
             </div>

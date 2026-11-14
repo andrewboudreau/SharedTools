@@ -1,0 +1,5 @@
+bin/
+obj/
+out/
+# Holds MODULE_UPLOAD_KEY. Never commit it.
+.env

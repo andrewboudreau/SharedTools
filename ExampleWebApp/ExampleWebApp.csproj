@@ -5,10 +5,19 @@
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<IsPackable>false</IsPackable>
+		<ModuleDropsDir>$(MSBuildProjectDirectory)\bin\drops\</ModuleDropsDir>
 	</PropertyGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="..\SharedTools.Web\SharedTools.Web.csproj" />
+		<ProjectReference Include="..\SharedTools.ModuleManagement\SharedTools.ModuleManagement.csproj" />
 	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Published to bin\drops\ExampleWebModule and loaded through Modules:Paths (appsettings.Development.json). -->
+		<ModuleDrop Include="..\ExampleWebModule\ExampleWebModule.csproj" Id="ExampleWebModule" />
+	</ItemGroup>
+
+	<Import Project="..\eng\ModuleDrops.targets" />
 
 </Project>

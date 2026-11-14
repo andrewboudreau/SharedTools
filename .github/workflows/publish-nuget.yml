@@ -74,19 +74,6 @@ jobs:
     - name: Build
       run: dotnet build --no-restore --configuration Release
 
-    - name: Setup local NuGet feed for module tests
-      run: |
-        mkdir -p /tmp/local-nuget
-        find . -path '*/bin/Release/*.nupkg' -exec cp {} /tmp/local-nuget/ \;
-        cat > SharedTools.Tests/bin/Release/net11.0/nuget.config << 'NUGETEOF'
-        <?xml version="1.0" encoding="utf-8"?>
-        <configuration>
-          <packageSources>
-            <add key="local-test" value="/tmp/local-nuget" />
-            <add key="nuget.org" value="https://api.nuget.org/v3/index.json" protocolVersion="3" />
-          </packageSources>
-        </configuration>
-        NUGETEOF
 
     - name: Test
       run: dotnet test --no-build --configuration Release

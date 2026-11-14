@@ -5,36 +5,35 @@ using Microsoft.Extensions.DependencyInjection;
 namespace SharedTools.Web.Modules;
 
 /// <summary>
-/// Modern interface for web modules that integrate with ASP.NET Core's ApplicationParts system.
-/// Modules implementing this interface can contribute Razor Pages, views, and other components.
+/// A web module: a class library whose <c>dotnet publish</c> output (a "drop") a host loads at startup.
+/// Modules can contribute services, endpoints, Razor Pages and static files under <c>wwwroot/</c>.
 /// </summary>
 public interface IApplicationPartModule
 {
     /// <summary>
-    /// Gets the name of the module for identification and static asset routing.
+    /// The module's name. Its static files are served at <c>/_content/{Name}/</c>.
     /// </summary>
     string Name { get; }
 
     /// <summary>
-    /// Optional: configures services for the module during the host's service configuration phase.
-    /// This is called before the application is built. Defaults to a no-op so a trivial module
-    /// need only implement Name and Configure.
+    /// The module's home URL, used by the module hub to link to it. Defaults to <c>/{Name}/</c>.
     /// </summary>
-    /// <param name="services">The service collection to add services to.</param>
+    string Home => $"/{Name}/";
+
+    /// <summary>
+    /// Optional: registers the module's services before the host is built. If this throws, none of
+    /// its registrations are kept.
+    /// </summary>
     void ConfigureServices(IServiceCollection services) { }
 
     /// <summary>
-    /// Optional: configures the module's application parts, allowing it to contribute Razor Pages,
-    /// views, and other components. The loader registers assembly parts automatically, so most
-    /// modules leave this as the default no-op.
+    /// Optional: advanced ApplicationPart configuration. The loader registers the module assembly's
+    /// parts automatically, so most modules leave this as the default no-op.
     /// </summary>
-    /// <param name="applicationPartManager">The application part manager to configure.</param>
     void ConfigureApplicationParts(ApplicationPartManager applicationPartManager) { }
 
     /// <summary>
-    /// Configures the application pipeline for the module after the host is built.
-    /// This is where modules can add middleware, endpoints, etc.
+    /// Configures the module's middleware and endpoints after the host is built.
     /// </summary>
-    /// <param name="app">The web application to configure.</param>
     void Configure(WebApplication app);
 }

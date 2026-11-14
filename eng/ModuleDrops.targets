@@ -1,0 +1,25 @@
+<Project>
+  <!--
+    Publishes module projects as drops for a local host or tests, after this project builds.
+    Import at the END of a project that declares, before the import:
+
+      <PropertyGroup><ModuleDropsDir>$(MSBuildProjectDirectory)\bin\drops\</ModuleDropsDir></PropertyGroup>
+      <ItemGroup><ModuleDrop Include="..\MyModule\MyModule.csproj" Id="MyModule" /></ItemGroup>
+
+    Each drop lands in $(ModuleDropsDir){Id}\ (default: {output}\drops\{Id}\), ready for
+    Modules:Paths:{Id} or a test's store.
+  -->
+  <ItemGroup>
+    <!-- Build order only: the host must not reference the module's assembly. -->
+    <ProjectReference Include="@(ModuleDrop)" ReferenceOutputAssembly="false" Private="false" />
+  </ItemGroup>
+
+  <Target Name="PublishModuleDrops" AfterTargets="Build" Condition="'@(ModuleDrop)' != ''">
+    <PropertyGroup>
+      <ModuleDropsDir Condition="'$(ModuleDropsDir)' == ''">$(TargetDir)drops\</ModuleDropsDir>
+    </PropertyGroup>
+    <MSBuild Projects="%(ModuleDrop.Identity)"
+             Targets="Publish"
+             Properties="Configuration=$(Configuration);NoBuild=true;PublishDir=$(ModuleDropsDir)%(ModuleDrop.Id)\" />
+  </Target>
+</Project>

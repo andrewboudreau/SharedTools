@@ -26,17 +26,33 @@ dotnet new sharedmodule -n MyIdea
 This creates a module project `MyIdea` with:
 
 - a `Module` class implementing `IApplicationPartModule` (home page + endpoint stubs),
-- an embedded `wwwroot/index.html` served at `/MyIdea/`,
-- packaging set up (`GeneratePackageOnBuild`, local feed output in Debug).
+- a `wwwroot/index.html` served at `/MyIdea/` (and everything in `wwwroot/` at `/_content/MyIdea/`),
+- SharedTools.Web referenced compile-only (the host supplies it at runtime),
+- `deploy.ps1`, which publishes, uploads and waits for the host to report the drop.
 
 Reference a specific SharedTools.Web version with `--sharedToolsVersion`:
 
 ```bash
-dotnet new sharedmodule -n MyIdea --sharedToolsVersion 2.0.0
+dotnet new sharedmodule -n MyIdea --sharedToolsVersion 3.0.0
 ```
 
-Build it, and in Debug it packs to `C:\LocalNuGet` so a host can load it via
-`AddApplicationPartModules(["MyIdea"])`.
+## Run it locally
+
+Publish, then point any SharedTools host at the output with `Modules:Paths`:
+
+```bash
+dotnet publish -c Release -o out
+# in the host's appsettings.Development.json:  "Modules": { "Paths": { "MyIdea": "C:/src/MyIdea/out" } }
+```
+
+## Deploy it
+
+```bash
+pwsh ./deploy.ps1 -Id my-idea
+```
+
+The key comes from `MODULE_UPLOAD_KEY` in the environment or a gitignored `.env`. It lets the holder run
+code on the module host, so never commit it or hand it to an untrusted agent.
 
 ## Pack the template package
 

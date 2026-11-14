@@ -10,28 +10,16 @@
     <RazorCompileOnPublish>true</RazorCompileOnPublish>
     <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
 
-    <!-- Pack the module so a host can load it from NuGet. -->
-    <PackageId>SharedTools.ModuleTemplate</PackageId>
+    <!-- A module ships as a drop: `dotnet publish -o out`, zipped and uploaded. Not a NuGet package. -->
+    <IsPackable>false</IsPackable>
     <Version>0.1.0</Version>
-    <GeneratePackageOnBuild Condition="'$(CI)' != 'true'">true</GeneratePackageOnBuild>
   </PropertyGroup>
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
 
-    <PackageReference Include="SharedTools.Web" Version="SHAREDTOOLS_VERSION">
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
+    <!-- Compile against the contract; the host supplies SharedTools.Web at runtime. -->
+    <PackageReference Include="SharedTools.Web" Version="SHAREDTOOLS_VERSION" ExcludeAssets="runtime" PrivateAssets="all" />
   </ItemGroup>
-
-  <!-- Embed static assets (HTML/CSS/JS) into the assembly. -->
-  <ItemGroup>
-    <EmbeddedResource Include="wwwroot\**\*" />
-  </ItemGroup>
-
-  <!-- During Debug, drop the package into a local feed for quick host testing. -->
-  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
-    <PackageOutputPath>C:\LocalNuGet</PackageOutputPath>
-  </PropertyGroup>
 
 </Project>

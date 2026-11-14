@@ -1,5 +1,8 @@
 # SharedTools Planning and Architecture
 
+> **Historical (pre-3.0).** Modules no longer load from NuGet; they are uploaded as `dotnet publish`
+> drops. See `docs/plans/2026-11-14-module-drops.md` and the README for the current design.
+
 This document captures architectural decisions, conventions, and future ideas for the SharedTools module system.
 
 ## Core Design Principles

@@ -1,10 +1,14 @@
 {
   "$schema": "http://json.schemastore.org/template",
   "author": "Andrew Boudreau",
-  "classifications": [ "Web", "SharedTools", "Module" ],
+  "classifications": [
+    "Web",
+    "SharedTools",
+    "Module"
+  ],
   "identity": "SharedTools.Module.CSharp",
   "name": "SharedTools Web Module",
-  "description": "A web module that plugs into a SharedTools host: embedded wwwroot, a home page, and endpoints, packable to NuGet.",
+  "description": "A web module that plugs into a SharedTools host: wwwroot, a home page, and endpoints, published as a drop.",
   "shortName": "sharedmodule",
   "tags": {
     "language": "C#",
@@ -16,9 +20,31 @@
     "sharedToolsVersion": {
       "type": "parameter",
       "datatype": "text",
-      "defaultValue": "2.0.0",
+      "defaultValue": "3.0.0",
       "replaces": "SHAREDTOOLS_VERSION",
       "description": "Version of the SharedTools.Web package to reference."
+    },
+    "moduleIdLower": {
+      "type": "generated",
+      "generator": "casing",
+      "parameters": {
+        "source": "name",
+        "toLower": true
+      }
+    },
+    "moduleId": {
+      "type": "generated",
+      "generator": "regex",
+      "replaces": "sharedtools-moduletemplate",
+      "parameters": {
+        "source": "moduleIdLower",
+        "steps": [
+          {
+            "regex": "[^a-z0-9]+",
+            "replacement": "-"
+          }
+        ]
+      }
     }
   }
 }

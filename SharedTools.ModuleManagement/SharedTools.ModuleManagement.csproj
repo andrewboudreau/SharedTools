@@ -11,15 +11,11 @@
 		<EnableDefaultRazorGenerateItems>true</EnableDefaultRazorGenerateItems>
 		<AddRazorSupportForMvc>true</AddRazorSupportForMvc>
 
-		<!-- NuGet Package Properties -->
-		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<!-- NuGet Package Properties (hosts reference it and call AddModule<ModuleManagementModule>) -->
 		<PackageId>SharedTools.ModuleManagement</PackageId>
-		<Version>2.0.0</Version>
+		<Version>3.0.0</Version>
 		<Authors>SharedTools</Authors>
 		<Description>Web-based management interface for viewing and managing dynamically loaded SharedTools modules</Description>
-
-		<!-- Output to local NuGet feed in Debug mode -->
-		<PackageOutputPath Condition="'$(Configuration)' == 'Debug'">C:\LocalNuGet</PackageOutputPath>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -27,9 +23,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\SharedTools.Web\SharedTools.Web.csproj">
-			<PrivateAssets>all</PrivateAssets>
-		</ProjectReference>
+		<ProjectReference Include="..\SharedTools.Web\SharedTools.Web.csproj" />
 	</ItemGroup>
 
 </Project>

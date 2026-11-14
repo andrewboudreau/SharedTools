@@ -4,244 +4,81 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-SharedTools is a dynamic web module loading library for ASP.NET Core that enables runtime discovery, download, and loading of web modules from NuGet packages. The key innovation is the ability to load complete web applications (including Razor Pages, static assets, and dependencies) as modular components at startup.
+SharedTools loads ASP.NET Core web modules at startup from **drops**: the output of `dotnet publish`
+(module dll, its `.deps.json`, its NuGet dependencies, `wwwroot/`), uploaded to a module host as a zip.
+Each drop loads in its own `AssemblyLoadContext`; the shared framework and the `SharedTools.Web`
+contract come from the host. Since 3.0 there is no runtime NuGet: nothing is downloaded at startup.
 
-## Project Structure
+The design and its rationale are in `docs/plans/2026-11-14-module-drops.md`. The upload API and the
+production module host (`modules.blogfor.net`) live in the HostingService repo (`domains/modules`),
+not here.
 
-This is a .NET 11.0 solution with the following projects:
+## Project Structure (.NET 11)
 
-- **SharedTools.Web**: The core library providing dynamic NuGet package loading and ApplicationPart integration
-  - Handles NuGet package discovery, download, and extraction
-  - Manages isolated assembly loading with dependency resolution
-  - Integrates modules with ASP.NET Core's ApplicationPart system
-  - Supports Razor Pages, static assets, and full MVC features
+- **SharedTools.Web** — the loader and contract (NuGet package, no dependencies beyond ASP.NET Core)
+  - `Modules/IApplicationPartModule.cs` — the contract: `Name`, `Home`, `ConfigureServices`, `ConfigureApplicationParts`, `Configure`
+  - `Modules/ModuleExtensions.cs` — `AddModules()`, `AddModule<T>()`, `UseModules()`, `ContentRoot()`/`WebRoot()`
+  - `Modules/DropLoader.cs` — per-drop load, transactional `ConfigureServices`, `.prev` fallback, crash recovery
+  - `Modules/ModuleStore.cs` — the on-disk store layout shared with uploaders; `ModuleDropStatus`
+  - `Modules/ModuleStatusWriter.cs` — writes `_status/{id}.json` and clears `.booting` on ApplicationStarted
+  - `Modules/ModuleAssemblyLoadContext.cs` — isolation rule (contract → host; framework → host unless the drop's copy is newer; rest → drop's `.deps.json`)
+  - `Modules/ModuleRegistry.cs` — what loaded and what failed (singleton, read by the hub)
+  - `Modules/ModuleOptionsExtensions.cs` — `AddModuleOptions<T>(moduleName)` binds `Modules:{Name}`
+- **SharedTools.ModuleManagement** — the module hub at `/_modules` (NuGet package; hosts add it with `AddModule<ModuleManagementModule>()`)
+- **ExampleWebModule** — example module (Razor SDK, Razor Pages, `wwwroot`, options, Azure.Storage.Blobs)
+- **ExampleWebApp** — example host; its build publishes ExampleWebModule to `bin/drops/` and `appsettings.Development.json` loads it via `Modules:Paths`
+- **SharedTools.Tests** / **SharedTools.Tests.TestModule** — HTTP tests and loader tests against a temp store; TestModule is a plain-SDK drop whose `ConfigureServices` throws if its drop has a `throw` file
+- **eng/ModuleDrops.targets** — publishes `@(ModuleDrop)` projects as drops after build (used by ExampleWebApp and the tests)
+- **templates/** — `dotnet new sharedmodule` (module + `deploy.ps1`)
 
-- **SharedTools.Tests**: Testing utilities and shared test resources
+## Commands
 
-- **ExampleWebModule**: Example web module demonstrating proper module structure
-  - Shows how to implement IApplicationPartModule interface
-  - Includes Razor Pages compiled into the assembly
-  - Demonstrates static asset embedding
-  - Example of NuGet package dependencies (Azure.Storage.Blobs)
-
-- **ExampleWebApp**: Host application demonstrating module consumption
-  - Shows how to load modules from NuGet at startup
-  - Demonstrates loading from local NuGet feed (C:\LocalNuGet)
-  - Example of loading external modules (ProjectGeoShot.Game)
-
-## Build and Development Commands
-
-### Build the solution
 ```bash
 dotnet build
-```
-
-### Build in release mode
-```bash
-dotnet build -c Release
-```
-
-### Run tests
-```bash
 dotnet test
+cd ExampleWebApp && dotnet run        # loads bin/drops/ExampleWebModule in Development
+dotnet pack -c Release                # SharedTools.Web, SharedTools.ModuleManagement (published by CI on tag)
 ```
 
-### Run the example application
-```bash
-cd ExampleWebApp
-dotnet run
-```
+## How loading works
 
-### Pack NuGet packages
-```bash
-dotnet pack -c Release
-```
+1. `AddModules()` reads `Modules:Root` (default `/data/modules`, skipped if missing) and `Modules:Paths:{id}`.
+2. If the store's root `.booting` marker is still present, the last boot crashed: every *new* drop
+   (status missing or `pending`, or an unrecognised `.drop`) is rolled back to `{id}.prev`, or moved to
+   `{id}.disabled` if there is none or it is already a rollback. Then `.booting` is written.
+3. For each drop: the entry assembly is the single `*.deps.json`'s dll; it loads in a
+   `ModuleAssemblyLoadContext`; exactly one `IApplicationPartModule` type is instantiated; duplicate
+   assemblies or names are rejected.
+4. `ConfigureServices` runs against a copy of the host's services and is committed only if it succeeds;
+   ApplicationParts are added once.
+5. A new drop that fails steps 3–4 is swapped with `{id}.prev` on disk (recorded as `pending` + phase
+   first, so a crash can't swap back), and the previous drop is loaded.
+6. `UseModules()` serves `{drop}/wwwroot` at `/_content/{Name}/` and calls each `Configure` (failures
+   reported, not undone).
+7. On ApplicationStarted, `_status/{id}.json` is written for each managed module and `.booting` cleared.
 
-### Pack modules to local NuGet feed (for development)
-```bash
-dotnet pack ExampleWebModule -c Debug
-```
-Note: ExampleWebModule is configured to output to `C:\LocalNuGet` in Debug mode for local testing.
+## Writing modules
 
-### Clean build artifacts
-```bash
-dotnet clean
-```
+- Reference `SharedTools.Web` compile-only: `ExcludeAssets="runtime" PrivateAssets="all"` (or
+  `Private="false" ExcludeAssets="runtime"` on a ProjectReference). The drop must not ship its own copy.
+- `FrameworkReference` to `Microsoft.AspNetCore.App`; any other dependencies are normal PackageReferences.
+- Razor SDK publishes `wwwroot` automatically; plain `Microsoft.NET.Sdk` needs
+  `<Content Include="wwwroot\**" CopyToPublishDirectory="PreserveNewest" />`.
+- Read files through `this.WebRoot()`/`this.ContentRoot()`, never embedded resources.
+- Configuration via `AddModuleOptions<T>(Name)` (`Modules:{Name}:*`, env `Modules__{Name}__*`).
+- Local testing: `dotnet publish -o out`, then `Modules:Paths:{id}` in a host. `bin/Debug` is not a drop.
 
-## Development Workflow
+## Security
 
-1. **Develop Module**: Create or modify a web module implementing IApplicationPartModule
-2. **Pack Module**: Run `dotnet pack ExampleWebModule -c Debug` to output to C:\LocalNuGet
-3. **Test Module**: Run the ExampleWebApp which loads modules from the local feed
-4. **Iterate**: Make changes and repack - the module will be reloaded on next app start
-
-## Core Architecture
-
-### Dynamic Module Loading System
-
-The library provides a complete solution for loading ASP.NET Core web modules from NuGet packages at runtime:
-
-1. **NuGet Integration**: Full NuGet client implementation for package discovery and download
-2. **Dependency Resolution**: Recursive resolution of all package dependencies with version conflict handling
-3. **Isolated Loading**: Custom AssemblyLoadContext for loading modules with proper dependency isolation
-4. **ASP.NET Integration**: Seamless integration with ApplicationParts for Razor Pages and MVC
-5. **Asset Management**: Automatic discovery and serving of embedded static assets
-
-### Key Components
-
-**IApplicationPartModule Interface** (`SharedTools.Web/Modules/IApplicationPartModule.cs`)
-- Core contract that modules must implement
-- `ConfigureServices(IServiceCollection services)` - Register services with DI container
-- `Configure(WebApplication app)` - Configure middleware and endpoints
-- `ConfigureApplicationParts(ApplicationPartManager partManager)` - Advanced ApplicationPart configuration
-
-**ApplicationPartModuleExtensions** (`SharedTools.Web/Modules/ApplicationPartModuleExtensions.cs`)
-- Main entry point for module loading functionality
-- `AddApplicationPartModules()` - Discovers, downloads, and loads modules from NuGet
-- `UseApplicationPartModules()` - Activates loaded modules in the pipeline
-
-**ModuleAssemblyLoadContext** (`SharedTools.Web/Modules/ModuleAssemblyLoadContext.cs`)
-- Custom AssemblyLoadContext providing proper isolation
-- Smart delegation strategy: framework assemblies use host versions, module dependencies load isolated
-- Handles System.* assemblies by trying module directory first, then delegating to host
-- Prevents version conflicts while maintaining compatibility
-
-### Assembly Processing Pipeline
-
-1. **Dependency Resolution**: Recursively resolve all NuGet package dependencies using prioritized repository search
-2. **Download**: Download packages from configured NuGet sources with fallback to nuget.org
-3. **Flat Extraction**: Extract all assemblies to a single "flat" directory for proper dependency resolution
-4. **Isolated Loading**: Use ModuleAssemblyLoadContext to load main assembly with selective delegation
-5. **Type Discovery**: Find concrete types implementing IApplicationPartModule interface
-6. **ASP.NET Integration**: Register assemblies with ApplicationPartManager for MVC/Razor discovery
-7. **Service Configuration**: Call ConfigureServices() for service registration
-8. **Pipeline Configuration**: Call Configure() for middleware/endpoint setup
-
-### Static Asset Handling
-
-- Static assets in `wwwroot` folder are embedded as resources in the module assembly
-- Automatically discovered and served using ManifestEmbeddedFileProvider
-- Assets accessible via `_content/{ModuleName}/` path convention
-- No extraction step required - faster module loading
-
-### Key Dependencies
-
-- **Microsoft.Extensions.DependencyInjection.Abstractions**: Dependency injection abstractions
-- **NuGet.Packaging & NuGet.Protocol**: NuGet package discovery, download, and extraction
-- **Microsoft.AspNetCore.App**: ASP.NET Core framework (via FrameworkReference)
-
-### Configuration Sources
-
-The system supports multiple NuGet configuration approaches:
-1. Explicit repository URLs passed to `AddApplicationPartModules()`
-2. Discovery from `nuget.config` files in the project directory
-3. Fallback to default nuget.org source
-
-### Local Development Setup
-
-The ExampleWebApp includes a `nuget.config` that configures:
-- **Local Feed**: `C:\LocalNuGet` for locally built modules
-- **Official NuGet**: Standard nuget.org source
-- **Visual Studio Offline**: Local Visual Studio packages
-
-This enables testing locally built modules before publishing to public NuGet feeds.
-
-## Creating Web Modules
-
-### Module Requirements
-
-1. Implement `IApplicationPartModule` interface
-2. Use `ConfigureServices()` for dependency injection setup
-3. Use `Configure()` for middleware/endpoint configuration
-4. Include embedded resources in `wwwroot` folder for static assets
-5. Reference `Microsoft.AspNetCore.App` via `<FrameworkReference>`
-6. Reference `SharedTools.Web` with `<PrivateAssets>all</PrivateAssets>`
-
-### Module Best Practices
-
-- Use Razor SDK (`Microsoft.NET.Sdk.Razor`) for Razor Pages support
-- Set `StaticWebAssetBasePath` to `_content/{ModuleName}`
-- Enable `RazorCompileOnBuild` and `RazorCompileOnPublish`
-- Include all required dependencies in the NuGet package
-- Test with local NuGet feed before publishing
-
-### Module Project Template
-
-The `ExampleWebModule` project demonstrates proper configuration:
-- Uses `Microsoft.NET.Sdk.Razor` SDK for Razor support
-- Sets `StaticWebAssetBasePath` for proper asset routing
-- Configures local NuGet output in Debug mode (`C:\LocalNuGet`)
-- Includes proper framework and package references
-
-## Usage Example
-
-The `ExampleWebApp` demonstrates loading modules:
-
-```csharp
-// Program.cs
-// Load modules from NuGet (uses nuget.config for source configuration)
-await builder.AddApplicationPartModules(["ExampleWebModule", "ProjectGeoShot.Game"]);
-
-var app = builder.Build();
-
-// ... configure pipeline ...
-
-// Activate loaded modules
-app.UseApplicationPartModules();
-```
-
-Modules are automatically discovered, downloaded, extracted, and integrated into the ASP.NET Core pipeline.
-
-## Key Features
-
-- **Runtime Module Loading**: Load complete ASP.NET Core modules from NuGet at application startup
-- **Full Dependency Resolution**: Automatically resolves and downloads all transitive dependencies
-- **Assembly Isolation**: Prevents version conflicts between modules and host application
-- **Razor Pages Support**: Modules can include compiled Razor Pages and views
-- **Static Asset Handling**: Embedded static assets served via ManifestEmbeddedFileProvider
-- **Development Workflow**: Local NuGet feed support for rapid development iteration
-
-## Module Management Hub
-
-### Overview
-
-SharedTools.ModuleManagement is a special module that provides a web-based management interface for viewing and managing loaded modules. Since modules are loaded dynamically at runtime from NuGet packages, this management hub discovers loaded modules and provides:
-
-- Overview page listing all installed modules
-- Module details including version, dependencies, and exposed endpoints
-- Direct links to visit module entry points
-- Module health and status information
-
-### Implementation Requirements
-
-The module management hub itself is implemented as an IApplicationPartModule and must:
-
-1. **Track Module Loading**: Hook into the module loading process to maintain a registry of loaded modules
-2. **Expose Module Metadata**: Collect and display information about each module including:
-   - Module name and version
-   - Exposed routes and endpoints
-   - Static asset paths
-   - Service registrations
-3. **Provide Navigation**: Create a central hub for navigating between modules
-4. **Self-Register**: The management module must be discoverable by itself
-
-### Architecture Considerations
-
-- The hub needs access to ApplicationPartManager to discover loaded assemblies
-- It should register early in the pipeline to track other module registrations
-- Module metadata should be collected during the ConfigureServices phase
-- UI should be accessible at a well-known route (e.g., `/_modules`)
-
-## Testing
-
-The SharedTools.Tests project provides utilities for testing web modules and shared functionality. Tests should verify module loading, service registration, and proper isolation between modules.
+The module upload key (`MODULE_UPLOAD_KEY`) is equivalent to code execution on the module host. Never
+commit it, put it in a message, or hand it to a sandboxed or third-party agent. It is separate from
+the agent-sites key and the site publish tokens.
 
 ## Troubleshooting
 
-### Common Issues
+Check `/_modules` or `_status/{id}.json` first; they carry the failing phase and error.
 
-1. **FileNotFoundException for dependencies**: Usually indicates missing transitive dependencies. The ModuleAssemblyLoadContext now checks module directory first for System.* assemblies before delegating to host.
-
-2. **Module not loading**: Check that the module implements IApplicationPartModule and is properly packed as a NuGet package.
-
-3. **Static assets not found**: Ensure assets are embedded in wwwroot folder and StaticWebAssetBasePath is configured correctly.
+- **`Expected exactly one *.deps.json`** — not a publish output, or the zip has a wrapper folder.
+- **`already loaded by the host or another module`** — the same entry assembly in two drops, or the host references the module's assembly (tests must use `ReferenceOutputAssembly="false"`).
+- **FileNotFoundException for a dependency** — the drop is missing it; republish rather than copying `bin/`.
+- **Static file 404** — `wwwroot` not published, or the URL isn't under `/_content/{Name}/`.

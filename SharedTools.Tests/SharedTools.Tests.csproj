@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net11.0</TargetFramework>
@@ -20,8 +20,15 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="..\SharedTools.Web\SharedTools.Web.csproj" />
-    <ProjectReference Include="..\ExampleWebModule\ExampleWebModule.csproj" />
-    <ProjectReference Include="..\ExampleWebApp\ExampleWebApp.csproj" />
+    <ProjectReference Include="..\SharedTools.ModuleManagement\SharedTools.ModuleManagement.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- Published to $(OutDir)drops\ExampleWebModule; tests copy it into a temporary module store. -->
+    <ModuleDrop Include="..\ExampleWebModule\ExampleWebModule.csproj" Id="ExampleWebModule" />
+    <ModuleDrop Include="..\SharedTools.Tests.TestModule\SharedTools.Tests.TestModule.csproj" Id="TestModule" />
+  </ItemGroup>
+
+  <Import Project="..\eng\ModuleDrops.targets" />
 
 </Project>

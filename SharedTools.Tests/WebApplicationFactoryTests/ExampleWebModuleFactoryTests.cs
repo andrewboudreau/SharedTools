@@ -14,10 +14,7 @@ public class ExampleWebModuleFactoryTests
     [TestInitialize]
     public void Setup()
     {
-        _factory = new ModularWebApplicationFactory(
-            "SharedTools.ExampleWebModule",
-            "SharedTools.ModuleManagement"
-        );
+        _factory = new ModularWebApplicationFactory();
     }
 
     [TestCleanup]
