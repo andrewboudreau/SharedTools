@@ -19,8 +19,13 @@ public class ModuleManagementModule : IApplicationPartModule
             client.Timeout = TimeSpan.FromSeconds(5);
             client.DefaultRequestHeaders.UserAgent.ParseAdd("SharedTools.ModuleManagement/1.0");
         });
-        services.AddRazorPages();
+        // The hub's well-known URL is /_modules; the folder-based route
+        // (/SharedTools.ModuleManagement) keeps working for existing links and monitors.
+        services.AddRazorPages(options =>
+            options.Conventions.AddPageRoute("/SharedTools.ModuleManagement/Index", HubPath.TrimStart('/')));
     }
+
+    public const string HubPath = "/_modules";
 
     public void Configure(WebApplication app)
     {
@@ -39,7 +44,7 @@ public class ModuleManagementModule : IApplicationPartModule
             AssemblyName = GetType().Assembly.GetName().Name ?? "SharedTools.ModuleManagement",
             Version = GetType().Assembly.GetName().Version?.ToString() ?? "1.0.0",
             Description = "Web-based management interface for viewing and managing loaded modules",
-            EntryPoint = "/SharedTools.ModuleManagement"
+            EntryPoint = HubPath
         });
 
         // Register all other loaded modules

@@ -140,6 +140,24 @@ public class ExampleWebModuleFactoryTests
     }
 
     [TestMethod]
+    public async Task ModuleManagement_Hub_ShouldBeServedAtWellKnownPath()
+    {
+        var client = _factory!.CreateClient();
+
+        var hub = await client.GetAsync("/_modules");
+        var legacy = await client.GetAsync("/SharedTools.ModuleManagement");
+
+        Assert.AreEqual(HttpStatusCode.OK, hub.StatusCode, "Hub should be served at /_modules");
+        Assert.AreEqual(HttpStatusCode.OK, legacy.StatusCode, "Folder-based hub route should keep working");
+
+        var content = await hub.Content.ReadAsStringAsync();
+        Assert.IsTrue(content.Contains("Module Management", StringComparison.Ordinal),
+            "Hub page should render the Module Management UI");
+        Assert.IsFalse(content.Contains("/_modules/details/", StringComparison.Ordinal),
+            "Hub should not link to the nonexistent details page");
+    }
+
+    [TestMethod]
     public async Task Application_ShouldLoadBothModules()
     {
         // Arrange
